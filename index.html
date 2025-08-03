@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crossword Columns Layout</title>
+    <style>
+        :root {
+            --column-count: 5;
+            --puzzle-width: 400px;
+            --puzzle-height: 500px;
+            --puzzle-col-span: 3;
+            --puzzle-row-span: 1;
+            --column-gap: 20px;
+            --row-gap: 20px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: repeat(var(--column-count), var(--column-width));
+            gap: var(--column-gap) var(--row-gap);
+            width: var(--container-width);
+            margin: 0 auto;
+        }
+
+        .puzzle {
+            background-color: #333;
+            width: var(--puzzle-width);
+            height: var(--puzzle-height);
+            border: 2px solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            justify-self: end;
+        }
+
+        .clue-column {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .clue-section {
+            margin-bottom: 20px;
+        }
+
+        .clue-section h3 {
+            margin-bottom: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+
+        .clue {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .clue-number {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        @media (max-width: 768px) {
+            :root {
+                --column-count: 3;
+                --puzzle-col-span: 2;
+                --puzzle-width: 300px;
+                --puzzle-height: 375px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+            <div class="puzzle">
+                Crossword Puzzle<br>
+                700×900px
+            </div>        <div class="clue-column" id="column-1"></div>
+        <div class="clue-column" id="column-2"></div>
+        <div class="clue-column" id="column-3"></div>
+        <div class="clue-column" id="column-4"></div>
+        <div class="clue-column" id="column-5"></div>
+    </div>
+
+    <script>
+        // Configuration variables - modify these to change the layout
+        const CONFIG = {
+            columnCount: 5,
+            puzzleWidth: 700,
+            puzzleHeight: 900,
+            puzzleColSpan: 3,
+            puzzleRowSpan: 1,
+            columnGap: 20,
+            rowGap: 20
+        };
+
+        // Sample clue data
+        const clueData = {
+            across: [
+                { number: 1, text: "Capital of France" },
+                { number: 4, text: "Large body of water" },
+                { number: 7, text: "Man's best friend" },
+                { number: 9, text: "Yellow citrus fruit" },
+                { number: 11, text: "Opposite of hot" },
+                { number: 13, text: "Flying mammal" },
+                { number: 15, text: "Red planet" },
+                { number: 17, text: "Frozen water" },
+                { number: 19, text: "King of the jungle" },
+                { number: 21, text: "Sweet treat made from cocoa" },
+                { number: 23, text: "Device for telling time" },
+                { number: 25, text: "Green vegetable that makes you strong" },
+                { number: 27, text: "Musical instrument with keys" },
+                { number: 29, text: "Bright star in our solar system" },
+                { number: 31, text: "Largest mammal in the ocean" },
+                { number: 33, text: "Black and white striped animal" },
+                { number: 35, text: "Tool for cutting wood" },
+                { number: 37, text: "Frozen dessert on a stick" },
+                { number: 39, text: "Bird that hoots at night" },
+                { number: 41, text: "Insect with beautiful wings" },
+                { number: 43, text: "Tall plant that grows in deserts" },
+                { number: 45, text: "Animal that changes color" },
+                { number: 47, text: "Small furry pet that squeaks" },
+                { number: 49, text: "Large cat with a mane" },
+                { number: 51, text: "Flying insect that makes honey" },
+                { number: 53, text: "Reptile with a hard shell" },
+                { number: 55, text: "Bird that cannot fly but swims well" },
+                { number: 57, text: "Animal with a long trunk" },
+                { number: 59, text: "Fastest land animal" },
+                { number: 61, text: "Animal that hops and has long ears" },
+                { number: 63, text: "Large fish that lives in the ocean" },
+                { number: 65, text: "Bird of prey with excellent eyesight" },
+                { number: 67, text: "Animal that hibernates in winter" },
+                { number: 69, text: "Insect that glows in the dark" },
+                { number: 71, text: "Animal with black and white fur" },
+                { number: 73, text: "Large bird that cannot fly" },
+                { number: 75, text: "Animal with a pouch" },
+                { number: 77, text: "Insect that chirps at night" },
+                { number: 79, text: "Animal with quills" },
+                { number: 81, text: "Bird that mimics human speech" },
+                { number: 83, text: "Animal that builds dams" },
+                { number: 85, text: "Insect that spins webs" }
+            ],
+            down: [
+                { number: 1, text: "Tall building in a city" },
+                { number: 2, text: "Small red fruit" },
+                { number: 3, text: "Ocean predator with fins" },
+                { number: 5, text: "Feline pet" },
+                { number: 6, text: "Round object used in sports" },
+                { number: 8, text: "Vehicle with four wheels" },
+                { number: 10, text: "Insect that makes honey" },
+                { number: 12, text: "White precipitation from clouds" },
+                { number: 14, text: "Nocturnal bird of prey" },
+                { number: 16, text: "Wooden writing instrument" },
+                { number: 18, text: "Colorful arc in the sky after rain" },
+                { number: 20, text: "Large gray animal with trunk" },
+                { number: 22, text: "Striped African animal" },
+                { number: 24, text: "Flying insect with colorful wings" },
+                { number: 26, text: "Reptile that changes colors" },
+                { number: 28, text: "Small rodent that squeaks" },
+                { number: 30, text: "Fruit that keeps the doctor away" },
+                { number: 32, text: "Yellow curved fruit" },
+                { number: 34, text: "Orange vegetable that rabbits love" },
+                { number: 36, text: "Green leafy vegetable" },
+                { number: 38, text: "Red vegetable used in salads" },
+                { number: 40, text: "Purple vegetable with green top" },
+                { number: 42, text: "White vegetable that makes you cry" },
+                { number: 44, text: "Green vegetable that looks like a tree" },
+                { number: 46, text: "Yellow vegetable that pops" },
+                { number: 48, text: "Orange fruit with segments" },
+                { number: 50, text: "Green fruit used to make guacamole" },
+                { number: 52, text: "Red berry used in jams" },
+                { number: 54, text: "Purple fruit that grows in bunches" },
+                { number: 56, text: "Tropical fruit with spiky skin" },
+                { number: 58, text: "Fuzzy brown fruit with green inside" },
+                { number: 60, text: "Yellow citrus fruit" },
+                { number: 62, text: "Green citrus fruit" },
+                { number: 64, text: "Stone fruit with fuzzy skin" },
+                { number: 66, text: "Small round fruit that grows on trees" },
+                { number: 68, text: "Red fruit with seeds on the outside" },
+                { number: 70, text: "Blue fruit that grows in clusters" },
+                { number: 72, text: "Tropical fruit with hard shell" },
+                { number: 74, text: "Sweet fruit that grows in warm climates" },
+                { number: 76, text: "Sour fruit used in cooking" },
+                { number: 78, text: "Dried fruit that wrinkles" },
+                { number: 80, text: "Nut that grows on trees" },
+                { number: 82, text: "Seed that becomes a tree" },
+                { number: 84, text: "Pod that contains seeds" },
+                { number: 86, text: "Root vegetable that grows underground" }
+            ]
+        };
+
+        function updateCSSVariables() {
+            const root = document.documentElement;
+            
+            // Calculate column width based on puzzle dimensions and gaps
+            // Formula: columnWidth = (puzzleWidth - (puzzleColSpan - 1) * gap) / puzzleColSpan
+            const columnWidth = (CONFIG.puzzleWidth - (CONFIG.puzzleColSpan - 1) * CONFIG.columnGap) / CONFIG.puzzleColSpan;
+            
+            // Calculate total container width
+            // Formula: containerWidth = columnCount * columnWidth + (columnCount - 1) * gap
+            const containerWidth = CONFIG.columnCount * columnWidth + (CONFIG.columnCount - 1) * CONFIG.columnGap;
+            
+            console.log('Layout calculations:', {
+                puzzleWidth: CONFIG.puzzleWidth,
+                puzzleColSpan: CONFIG.puzzleColSpan,
+                columnGap: CONFIG.columnGap,
+                calculatedColumnWidth: columnWidth,
+                containerWidth: containerWidth
+            });
+            
+            root.style.setProperty('--column-count', CONFIG.columnCount);
+            root.style.setProperty('--puzzle-width', `${CONFIG.puzzleWidth}px`);
+            root.style.setProperty('--puzzle-height', `${CONFIG.puzzleHeight}px`);
+            root.style.setProperty('--column-gap', `${CONFIG.columnGap}px`);
+            root.style.setProperty('--row-gap', `${CONFIG.rowGap}px`);
+            root.style.setProperty('--container-width', `${containerWidth}px`);
+            root.style.setProperty('--column-width', `${columnWidth}px`);
+        }
+
+        function generateGridTemplate() {
+            const container = document.querySelector('.container');
+            
+            // Calculate puzzle position
+            const puzzleStartCol = CONFIG.columnCount - CONFIG.puzzleColSpan + 1;
+            const puzzleEndCol = CONFIG.columnCount;
+            
+            // Generate grid-template-areas
+            let gridTemplate = '';
+            
+            // First row with puzzle
+            let firstRow = '';
+            for (let col = 1; col <= CONFIG.columnCount; col++) {
+                if (col >= puzzleStartCol && col <= puzzleEndCol) {
+                    firstRow += 'puzzle ';
+                } else {
+                    firstRow += `col${col} `;
+                }
+            }
+            gridTemplate += `"${firstRow.trim()}"`;
+            
+            // Add more rows for columns that need to extend below the puzzle
+            const puzzleHeightInRows = Math.ceil(CONFIG.puzzleHeight / 100); // Rough estimate
+            for (let row = 2; row <= puzzleHeightInRows + 2; row++) {
+                let rowTemplate = '';
+                for (let col = 1; col <= CONFIG.columnCount; col++) {
+                    if (col >= puzzleStartCol && col <= puzzleEndCol) {
+                        rowTemplate += `col${col} `;
+                    } else {
+                        rowTemplate += `col${col} `;
+                    }
+                }
+                gridTemplate += ` "${rowTemplate.trim()}"`;
+            }
+            
+            container.style.gridTemplateAreas = gridTemplate;
+            console.log('Generated grid template:', gridTemplate);
+            
+            // Assign grid areas to elements
+            document.querySelector('.puzzle').style.gridArea = 'puzzle';
+            for (let i = 1; i <= CONFIG.columnCount; i++) {
+                const column = document.getElementById(`column-${i}`);
+                if (column) {
+                    column.style.gridArea = `col${i}`;
+                }
+            }
+        }
+
+        function createClueHTML(clue) {
+            return `<div class="clue"><span class="clue-number">${clue.number}.</span>${clue.text}</div>`;
+        }
+
+        function createHeaderHTML(title) {
+            return `<div class="clue-section"><h3>${title}</h3></div>`;
+        }
+
+        function measureElementHeight(element, content) {
+            const tempDiv = document.createElement('div');
+            tempDiv.style.position = 'absolute';
+            tempDiv.style.visibility = 'hidden';
+            tempDiv.style.width = element.offsetWidth + 'px';
+            tempDiv.className = element.className;
+            tempDiv.innerHTML = content;
+            document.body.appendChild(tempDiv);
+            const height = tempDiv.offsetHeight;
+            document.body.removeChild(tempDiv);
+            return height;
+        }
+
+        function balanceColumns() {
+            const columns = [];
+            for (let i = 1; i <= CONFIG.columnCount; i++) {
+                const column = document.getElementById(`column-${i}`);
+                if (column) {
+                    columns.push(column);
+                    column.innerHTML = '';
+                }
+            }
+
+            if (columns.length === 0) return;
+
+            // Wait for layout to settle, then measure column widths
+            setTimeout(() => {
+                const columnWidth = columns[0].offsetWidth;
+                
+                // Create all content items with measured heights
+                const contentItems = [];
+                
+                // Add "Across" header
+                const acrossHeaderHTML = createHeaderHTML('Across');
+                const acrossHeaderHeight = measureElementHeight(columns[0], acrossHeaderHTML);
+                contentItems.push({
+                    type: 'header',
+                    content: acrossHeaderHTML,
+                    height: acrossHeaderHeight
+                });
+                
+                // Add across clues
+                for (const clue of clueData.across) {
+                    const clueHTML = createClueHTML(clue);
+                    const clueHeight = measureElementHeight(columns[0], clueHTML);
+                    contentItems.push({
+                        type: 'clue',
+                        content: clueHTML,
+                        height: clueHeight
+                    });
+                }
+                
+                // Add "Down" header
+                const downHeaderHTML = createHeaderHTML('Down');
+                const downHeaderHeight = measureElementHeight(columns[0], downHeaderHTML);
+                contentItems.push({
+                    type: 'header',
+                    content: downHeaderHTML,
+                    height: downHeaderHeight
+                });
+                
+                // Add down clues
+                for (const clue of clueData.down) {
+                    const clueHTML = createClueHTML(clue);
+                    const clueHeight = measureElementHeight(columns[0], clueHTML);
+                    contentItems.push({
+                        type: 'clue',
+                        content: clueHTML,
+                        height: clueHeight
+                    });
+                }
+
+                // Calculate total content height
+                const totalContentHeight = contentItems.reduce((sum, item) => sum + item.height, 0);
+
+                // Determine which columns are affected by the puzzle
+                const puzzleStartCol = CONFIG.columnCount - CONFIG.puzzleColSpan;
+                const puzzleEndCol = CONFIG.columnCount - 1;
+                
+                // Calculate available height for each column type
+                const fullColumnHeight = totalContentHeight / CONFIG.columnCount;
+                const puzzleAffectedHeight = Math.max(0, fullColumnHeight - CONFIG.puzzleHeight);
+                
+                // Calculate how much extra height the puzzle-affected columns lose
+                const heightDeficit = (fullColumnHeight - puzzleAffectedHeight) * CONFIG.puzzleColSpan;
+                const unaffectedColumns = CONFIG.columnCount - CONFIG.puzzleColSpan;
+                const extraHeightPerUnaffectedColumn = unaffectedColumns > 0 ? heightDeficit / unaffectedColumns : 0;
+                
+                // Target heights for each column
+                const targetHeights = [];
+                for (let i = 0; i < CONFIG.columnCount; i++) {
+                    if (i >= puzzleStartCol && i <= puzzleEndCol) {
+                        targetHeights.push(puzzleAffectedHeight);
+                    } else {
+                        targetHeights.push(fullColumnHeight + extraHeightPerUnaffectedColumn);
+                    }
+                }
+                
+                console.log('Column distribution:', {
+                    puzzleStartCol,
+                    puzzleEndCol,
+                    targetHeights,
+                    totalContentHeight,
+                    fullColumnHeight,
+                    puzzleAffectedHeight
+                });
+
+                // Distribute content to achieve target heights while preserving order
+                const columnContents = Array(CONFIG.columnCount).fill(null).map(() => []);
+                const columnHeights = Array(CONFIG.columnCount).fill(0);
+                
+                let currentColumn = 0;
+                let itemsPerColumn = Math.ceil(contentItems.length / CONFIG.columnCount);
+                let itemsInCurrentColumn = 0;
+                
+                for (let itemIndex = 0; itemIndex < contentItems.length; itemIndex++) {
+                    const item = contentItems[itemIndex];
+                    
+                    // Move to next column if we've reached the target items per column
+                    // or if current column is significantly over its target height
+                    const currentColumnRemaining = targetHeights[currentColumn] - columnHeights[currentColumn];
+                    const shouldMoveToNext = 
+                        itemsInCurrentColumn >= itemsPerColumn || 
+                        (columnHeights[currentColumn] > targetHeights[currentColumn] * 0.8 && currentColumnRemaining < item.height);
+                    
+                    if (shouldMoveToNext && currentColumn < CONFIG.columnCount - 1) {
+                        currentColumn++;
+                        itemsInCurrentColumn = 0;
+                        // Recalculate items per remaining column
+                        const remainingItems = contentItems.length - itemIndex;
+                        const remainingColumns = CONFIG.columnCount - currentColumn;
+                        itemsPerColumn = Math.ceil(remainingItems / remainingColumns);
+                    }
+                    
+                    columnContents[currentColumn].push(item);
+                    columnHeights[currentColumn] += item.height;
+                    itemsInCurrentColumn++;
+                    
+                    console.log(`Item ${itemIndex}: placed in column ${currentColumn + 1}, height now ${columnHeights[currentColumn]}, target ${targetHeights[currentColumn]}, items in column: ${itemsInCurrentColumn}`);
+                }
+
+                // Render the balanced content
+                for (let i = 0; i < CONFIG.columnCount; i++) {
+                    const column = columns[i];
+                    column.innerHTML = columnContents[i].map(item => item.content).join('');
+                }
+            }, 10);
+        }
+
+        function initializeLayout() {
+            // Validate configuration
+            if (CONFIG.puzzleColSpan >= CONFIG.columnCount) {
+                console.warn('puzzleColSpan must be less than columnCount');
+                CONFIG.puzzleColSpan = Math.max(1, CONFIG.columnCount - 1);
+            }
+            if (CONFIG.puzzleColSpan < 1) {
+                CONFIG.puzzleColSpan = 1;
+            }
+
+            updateCSSVariables();
+            generateGridTemplate();
+            
+            // Create/remove columns based on columnCount
+            const container = document.querySelector('.container');
+            const existingColumns = container.querySelectorAll('.clue-column');
+            
+            // Remove excess columns
+            existingColumns.forEach((col, index) => {
+                if (index >= CONFIG.columnCount) {
+                    col.remove();
+                }
+            });
+            
+            // Add missing columns
+            for (let i = existingColumns.length; i < CONFIG.columnCount; i++) {
+                const column = document.createElement('div');
+                column.className = 'clue-column';
+                column.id = `column-${i + 1}`;
+                container.appendChild(column);
+            }
+            
+            balanceColumns();
+        }
+
+        // Initialize the layout when the page loads
+        document.addEventListener('DOMContentLoaded', initializeLayout);
+
+        // Expose functions for easy configuration changes
+        window.updateConfig = function(newConfig) {
+            Object.assign(CONFIG, newConfig);
+            initializeLayout();
+        };
+
+        // Example usage:
+        // updateConfig({ columnCount: 4, puzzleColSpan: 2 });
+    </script>
+</body>
+</html>
