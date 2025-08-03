@@ -9,7 +9,7 @@
 
 2. Puzzle Display:
    - Rendered as a solid rectangle placeholder
-   - Dimensions: 400px width × 500px height
+   - Dimensions: 700px width × 900px height
    - Position: Upper-right corner
    - Width: Three columns wide
 
