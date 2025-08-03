@@ -35,11 +35,7 @@ jobs:
       run: bun test
       
     - name: Build project
-      run: |
-        mkdir -p dist
-        cp index.html dist/
-        cp frontend.tsx dist/
-        cp index.ts dist/
+      run: bun build index.html --outdir dist --minify --target browser
       
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
