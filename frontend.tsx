@@ -185,6 +185,20 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
   
   const gridTemplateAreas = generateGridTemplateAreas();
   const totalRows = 2; // Always 2 rows
+  
+  // Calculate content heights for display
+  const headerHeight = 30;
+  const clueHeight = 25;
+  const totalContentHeight = (2 * headerHeight) + ((sampleClues.across.length + sampleClues.down.length) * clueHeight);
+  
+  // Calculate target heights for affected vs unaffected columns
+  const unaffectedColumns = config.columnCount - config.puzzleColSpan;
+  const affectedColumns = config.puzzleColSpan;
+  const minUnaffectedHeight = config.puzzleHeight;
+  const idealUnaffectedHeight = Math.max(minUnaffectedHeight, totalContentHeight / config.columnCount);
+  const totalUnaffectedHeight = idealUnaffectedHeight * unaffectedColumns;
+  const remainingContentHeight = Math.max(0, totalContentHeight - totalUnaffectedHeight);
+  const idealAffectedHeight = remainingContentHeight / affectedColumns;
   return (
     <div style={{
       position: 'fixed',
@@ -290,6 +304,15 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
         </div>
         <div style={{ marginBottom: '4px' }}>
           <strong>Total Rows:</strong> {totalRows}
+        </div>
+        <div style={{ marginBottom: '4px' }}>
+          <strong>Total Content Height:</strong> {Math.round(totalContentHeight)}px
+        </div>
+        <div style={{ marginBottom: '4px' }}>
+          <strong>Unaffected Target:</strong> {Math.round(idealUnaffectedHeight)}px
+        </div>
+        <div style={{ marginBottom: '4px' }}>
+          <strong>Affected Target:</strong> {Math.round(idealAffectedHeight)}px
         </div>
         <div style={{ marginBottom: '4px' }}>
           <strong>Grid Template Columns:</strong><br />
