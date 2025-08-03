@@ -189,10 +189,43 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
   const gridTemplateRows = `${config.puzzleHeight}px auto`;
   const totalRows = 2; // Always 2 rows
   
-  // Calculate content heights for display
-  const headerHeight = 30;
-  const clueHeight = 25;
-  const totalContentHeight = (2 * headerHeight) + ((sampleClues.across.length + sampleClues.down.length) * clueHeight);
+  // Calculate content heights using actual measurements
+  const measureItemHeight = (content: string, isHeader: boolean): number => {
+    const tempDiv = document.createElement('div');
+    tempDiv.style.position = 'absolute';
+    tempDiv.style.visibility = 'hidden';
+    tempDiv.style.width = `${columnWidth}px`;
+    tempDiv.style.padding = '10px';
+    tempDiv.style.fontFamily = 'Arial, sans-serif';
+    tempDiv.style.fontSize = isHeader ? '16px' : '14px';
+    tempDiv.style.lineHeight = '1.4';
+    tempDiv.style.fontWeight = isHeader ? 'bold' : 'normal';
+    tempDiv.style.marginBottom = `${config.itemGap}px`;
+    
+    if (isHeader) {
+      tempDiv.style.margin = `15px 0 ${config.itemGap}px 0`;
+      tempDiv.style.textTransform = 'uppercase';
+      tempDiv.style.borderBottom = '1px solid #ccc';
+      tempDiv.style.paddingBottom = '5px';
+      tempDiv.style.padding = '5px';
+    } else {
+      tempDiv.style.padding = '2px 4px';
+    }
+    
+    tempDiv.innerHTML = content;
+    document.body.appendChild(tempDiv);
+    const height = tempDiv.offsetHeight;
+    document.body.removeChild(tempDiv);
+    return height;
+  };
+
+  const acrossHeaderHeight = measureItemHeight('ACROSS', true);
+  const downHeaderHeight = measureItemHeight('DOWN', true);
+  const avgClueHeight = sampleClues.across.slice(0, 5).reduce((sum, clue) => 
+    sum + measureItemHeight(`${clue.number}. ${clue.text}`, false), 0) / 5;
+  
+  const totalContentHeight = acrossHeaderHeight + downHeaderHeight + 
+    (sampleClues.across.length + sampleClues.down.length) * avgClueHeight;
   
   // Calculate target heights algebraically
   // Let U = unaffected column height, A = affected column height
@@ -436,13 +469,54 @@ const CrosswordLayout: React.FC = () => {
 
   const { columnWidth, containerWidth } = calculateLayout();
 
+  const measureItemHeight = (content: string, isHeader: boolean): number => {
+    // Create a temporary hidden element with the same styling and width as columns
+    const tempDiv = document.createElement('div');
+    tempDiv.style.position = 'absolute';
+    tempDiv.style.visibility = 'hidden';
+    tempDiv.style.width = `${columnWidth}px`;
+    tempDiv.style.padding = '10px'; // Same as column padding
+    tempDiv.style.fontFamily = 'Arial, sans-serif';
+    tempDiv.style.fontSize = isHeader ? '16px' : '14px';
+    tempDiv.style.lineHeight = isHeader ? '1.4' : '1.4';
+    tempDiv.style.fontWeight = isHeader ? 'bold' : 'normal';
+    tempDiv.style.marginBottom = `${config.itemGap}px`;
+    
+    if (isHeader) {
+      tempDiv.style.margin = `15px 0 ${config.itemGap}px 0`;
+      tempDiv.style.textTransform = 'uppercase';
+      tempDiv.style.borderBottom = '1px solid #ccc';
+      tempDiv.style.paddingBottom = '5px';
+      tempDiv.style.padding = '5px';
+    } else {
+      tempDiv.style.padding = '2px 4px';
+    }
+    
+    tempDiv.innerHTML = content;
+    document.body.appendChild(tempDiv);
+    const height = tempDiv.offsetHeight;
+    document.body.removeChild(tempDiv);
+    
+    return height;
+  };
+
   const balanceColumns = () => {
     if (columnElements.length === 0) return;
 
-    // Calculate target heights using the same logic as ConfigPanel
-    const headerHeight = 30;
-    const clueHeight = 25;
-    const totalContentHeight = (2 * headerHeight) + ((sampleClues.across.length + sampleClues.down.length) * clueHeight);
+    // Measure actual heights of all items
+    const acrossHeaderHeight = measureItemHeight('ACROSS', true);
+    const downHeaderHeight = measureItemHeight('DOWN', true);
+    
+    const acrossClueHeights = sampleClues.across.map(clue => 
+      measureItemHeight(`${clue.number}. ${clue.text}`, false)
+    );
+    const downClueHeights = sampleClues.down.map(clue => 
+      measureItemHeight(`${clue.number}. ${clue.text}`, false)
+    );
+    
+    const totalContentHeight = acrossHeaderHeight + downHeaderHeight + 
+      acrossClueHeights.reduce((sum, h) => sum + h, 0) + 
+      downClueHeights.reduce((sum, h) => sum + h, 0);
     
     const unaffectedColumns = config.columnCount - config.puzzleColSpan;
     const affectedColumns = config.puzzleColSpan;
@@ -457,17 +531,17 @@ const CrosswordLayout: React.FC = () => {
     const idealUnaffectedHeight = finalAffectedHeight + puzzleAndGapHeight;
 
     const allClues = [
-      { type: 'header', content: 'ACROSS', height: headerHeight },
-      ...sampleClues.across.map(clue => ({ 
+      { type: 'header', content: 'ACROSS', height: acrossHeaderHeight },
+      ...sampleClues.across.map((clue, index) => ({ 
         type: 'clue', 
         content: `${clue.number}. ${clue.text}`, 
-        height: clueHeight 
+        height: acrossClueHeights[index]! 
       })),
-      { type: 'header', content: 'DOWN', height: headerHeight },
-      ...sampleClues.down.map(clue => ({ 
+      { type: 'header', content: 'DOWN', height: downHeaderHeight },
+      ...sampleClues.down.map((clue, index) => ({ 
         type: 'clue', 
         content: `${clue.number}. ${clue.text}`, 
-        height: clueHeight 
+        height: downClueHeights[index]! 
       })),
     ];
 
