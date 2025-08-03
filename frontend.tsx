@@ -162,8 +162,9 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
   const puzzleStartCol = config.columnCount - config.puzzleColSpan;
   const gridTemplateColumns = `repeat(${config.columnCount}, ${Math.round(columnWidth)}px)`;
   
-  // Generate grid template areas
+  // Generate grid template areas - always exactly 2 rows
   const generateGridTemplateAreas = () => {
+    // First row: puzzle in the right columns, regular columns elsewhere
     let firstRow = '';
     for (let col = 1; col <= config.columnCount; col++) {
       if (col > puzzleStartCol && col <= config.columnCount) {
@@ -173,6 +174,7 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
       }
     }
     
+    // Second row: all columns
     let secondRow = '';
     for (let col = 1; col <= config.columnCount; col++) {
       secondRow += `col${col} `;
@@ -182,7 +184,7 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
   };
   
   const gridTemplateAreas = generateGridTemplateAreas();
-
+  const totalRows = 2; // Always 2 rows
   return (
     <div style={{
       position: 'fixed',
@@ -287,6 +289,9 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
           <strong>Puzzle Start Col:</strong> {puzzleStartCol + 1}
         </div>
         <div style={{ marginBottom: '4px' }}>
+          <strong>Total Rows:</strong> {totalRows}
+        </div>
+        <div style={{ marginBottom: '4px' }}>
           <strong>Grid Template Columns:</strong><br />
           <code style={{ fontSize: '11px', background: '#f5f5f5', padding: '2px 4px', borderRadius: '2px' }}>
             {gridTemplateColumns}
@@ -295,7 +300,7 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
         <div style={{ marginBottom: '4px' }}>
           <strong>Grid Template Areas:</strong><br />
           <code style={{ fontSize: '10px', background: '#f5f5f5', padding: '2px 4px', borderRadius: '2px', display: 'block', whiteSpace: 'pre-wrap' }}>
-            {gridTemplateAreas}
+            {gridTemplateAreas.replace(/"/g, '"\n').replace(/\n$/, '')}
           </code>
         </div>
       </div>
@@ -423,8 +428,9 @@ const CrosswordLayout: React.FC = () => {
 
   const puzzleStartCol = config.columnCount - config.puzzleColSpan;
 
-  // Generate grid template areas
+  // Generate grid template areas - always exactly 2 rows
   const generateGridTemplateAreas = () => {
+    // First row: puzzle in the right columns, regular columns elsewhere
     let firstRow = '';
     for (let col = 1; col <= config.columnCount; col++) {
       if (col > puzzleStartCol && col <= config.columnCount) {
@@ -434,6 +440,7 @@ const CrosswordLayout: React.FC = () => {
       }
     }
     
+    // Second row: all columns
     let secondRow = '';
     for (let col = 1; col <= config.columnCount; col++) {
       secondRow += `col${col} `;
@@ -443,8 +450,7 @@ const CrosswordLayout: React.FC = () => {
   };
 
   const gridTemplateAreas = generateGridTemplateAreas();
-  const gridTemplateColumns = `repeat(${config.columnCount}, ${columnWidth}px)`;
-  
+  const gridTemplateColumns = `repeat(${config.columnCount}, ${columnWidth}px)`;  
   console.log('Generated Grid Template:', {
     gridTemplateColumns,
     gridTemplateAreas,
