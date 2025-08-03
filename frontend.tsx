@@ -745,135 +745,161 @@ const CrosswordLayout: React.FC = () => {
 
     renderColumns();
 
-    // Visual balancing using actual DOM measurements
+    // Fast in-memory balancing simulation
     setTimeout(() => {
-      console.log('=== VISUAL BALANCING ===');
+      console.log('=== FAST VISUAL BALANCING ===');
       
-      const getColumnBottoms = () => {
-        return columnElements.map((column, index) => {
-          if (!column || !columnContents[index] || columnContents[index]!.length === 0) return 0;
-          
-          // Find the last item element in this column
-          const items = column.children;
-          if (items.length === 0) return 0;
-          
-          const lastItem = items[items.length - 1] as HTMLElement;
-          const rect = lastItem.getBoundingClientRect();
-          return rect.bottom;
+      // Step 1: Measure initial state once
+      renderColumns();
+      
+      setTimeout(() => {
+        // Get initial column top positions and measure all item heights
+        const columnTops = columnElements.map(column => {
+          if (!column) return 0;
+          const rect = column.getBoundingClientRect();
+          return rect.top + 10; // Add padding
         });
-      };
-
-      const performVisualBalancing = (iteration = 1) => {
-        if (iteration > 20) {
-          console.log('Visual balancing completed - max iterations reached');
-          return;
-        }
-
-        const columnBottoms = getColumnBottoms();
-        const maxBottom = Math.max(...columnBottoms);
-        const minBottom = Math.min(...columnBottoms);
-        const imbalance = maxBottom - minBottom;
         
-        console.log(`Visual iteration ${iteration}: Imbalance = ${Math.round(imbalance)}px`);
-        columnBottoms.forEach((bottom, i) => {
-          const itemCount = columnContents[i]!.length;
-          console.log(`  Column ${i}: ${Math.round(bottom)}px (${itemCount} items)`);
-        });
-
-        if (imbalance < 15) {
-          console.log('Visual balancing completed - good balance achieved');
-          return;
-        }
-
-        // Find the tallest and shortest columns
-        const tallestCol = columnBottoms.indexOf(maxBottom);
-        const shortestCol = columnBottoms.indexOf(minBottom);
-
-        // Try adjacent column moves only
-        const tryMoves = [];
-        
-        // For each column, try moving items to adjacent columns
-        for (let col = 0; col < config.columnCount; col++) {
-          if (columnContents[col]!.length <= 1) continue;
+        // Measure actual height of each item in the DOM
+        const itemHeights = columnContents.map((colItems, colIndex) => {
+          const column = columnElements[colIndex];
+          if (!column) return [];
           
-          // Try moving TOP of column to BOTTOM of previous column
-          if (col > 0) {
-            tryMoves.push(() => {
-              const item = columnContents[col]!.shift()!;
-              columnContents[col - 1]!.push(item);
-              return { 
-                item, 
-                from: col, 
-                to: col - 1, 
-                type: 'top-to-bottom-prev',
-                revert: () => {
-                  columnContents[col - 1]!.pop();
-                  columnContents[col]!.unshift(item);
-                }
-              };
+          return Array.from(column.children).map((item: HTMLElement) => item.offsetHeight);
+        });
+        
+        console.log('Initial measurements complete');
+        
+        // Step 2: Create virtual column state for fast simulation
+        class VirtualColumnState {
+          constructor(contents, heights, tops) {
+            this.contents = contents.map(col => [...col]); // Deep copy
+            this.itemHeights = heights.map(col => [...col]); // Deep copy
+            this.columnTops = [...tops];
+          }
+          
+          getColumnBottoms() {
+            return this.contents.map((colItems, colIndex) => {
+              if (colItems.length === 0) return this.columnTops[colIndex]!;
+              
+              let bottom = this.columnTops[colIndex]!;
+              for (let i = 0; i < colItems.length; i++) {
+                bottom += this.itemHeights[colIndex]![i]!;
+              }
+              return bottom;
             });
           }
           
-          // Try moving BOTTOM of column to TOP of next column
-          if (col < config.columnCount - 1) {
-            tryMoves.push(() => {
-              const item = columnContents[col]!.pop()!;
-              columnContents[col + 1]!.unshift(item);
-              return { 
-                item, 
-                from: col, 
-                to: col + 1, 
-                type: 'bottom-to-top-next',
-                revert: () => {
-                  columnContents[col + 1]!.shift();
-                  columnContents[col]!.push(item);
-                }
-              };
-            });
+          getImbalance() {
+            const bottoms = this.getColumnBottoms();
+            return Math.max(...bottoms) - Math.min(...bottoms);
           }
-        }
-
-        // Try the first valid move and see if it improves balance
-        let moveFound = false;
-        
-        for (const tryMove of tryMoves) {
-          const move = tryMove();
-          if (!move) continue;
           
-          // Execute the move
-          renderColumns();
-          
-          // Check if this improved the balance after a short delay
-          setTimeout(() => {
-            const newColumnBottoms = getColumnBottoms();
-            const newImbalance = Math.max(...newColumnBottoms) - Math.min(...newColumnBottoms);
+          // Move item from one column to another (returns new state)
+          makeMove(fromCol, toCol, fromTop) {
+            const newState = new VirtualColumnState(this.contents, this.itemHeights, this.columnTops);
             
-            if (newImbalance < imbalance) {
-              console.log(`  -> Moved "${move.item.content}" (${move.type}) from column ${move.from} to ${move.to}`);
-              console.log(`  -> Imbalance improved: ${Math.round(imbalance)}px -> ${Math.round(newImbalance)}px`);
-              
-              // Continue balancing
-              setTimeout(() => performVisualBalancing(iteration + 1), 100);
+            if (fromTop) {
+              // Move from top of fromCol to bottom of toCol
+              const item = newState.contents[fromCol]!.shift()!;
+              const height = newState.itemHeights[fromCol]!.shift()!;
+              newState.contents[toCol]!.push(item);
+              newState.itemHeights[toCol]!.push(height);
             } else {
-              // Revert the move
-              console.log(`  -> Move didn't improve balance, reverting`);
-              move.revert();
-              renderColumns();
-              
-              console.log('Visual balancing completed - no more improvements possible');
+              // Move from bottom of fromCol to top of toCol
+              const item = newState.contents[fromCol]!.pop()!;
+              const height = newState.itemHeights[fromCol]!.pop()!;
+              newState.contents[toCol]!.unshift(item);
+              newState.itemHeights[toCol]!.unshift(height);
             }
-          }, 50);
+            
+            return newState;
+          }
           
-          moveFound = true;
-          break; // Only try one move at a time
+          copy() {
+            return new VirtualColumnState(this.contents, this.itemHeights, this.columnTops);
+          }
         }
         
-        if (!moveFound) {
-          console.log('Visual balancing completed - no valid moves available');
+        // Step 3: Fast exploration using virtual states
+        let currentState = new VirtualColumnState(columnContents, itemHeights, columnTops);
+        let bestState = currentState.copy();
+        let bestImbalance = currentState.getImbalance();
+        
+        console.log(`Initial imbalance: ${Math.round(bestImbalance)}px`);
+        
+        // Try many move combinations quickly
+        for (let iteration = 0; iteration < 100; iteration++) {
+          const bottoms = currentState.getColumnBottoms();
+          const sortedCols = bottoms
+            .map((bottom, index) => ({ bottom, index }))
+            .sort((a, b) => b.bottom - a.bottom);
+          
+          let bestMove = null;
+          let bestMoveImbalance = currentState.getImbalance();
+          
+          // Try all possible adjacent moves
+          for (let colIdx = 0; colIdx < sortedCols.length; colIdx++) {
+            const col = sortedCols[colIdx]!.index;
+            if (currentState.contents[col]!.length <= 1) continue;
+            
+            // Try moving to previous column (top to bottom)
+            if (col > 0) {
+              const newState = currentState.makeMove(col, col - 1, true);
+              const newImbalance = newState.getImbalance();
+              if (newImbalance < bestMoveImbalance) {
+                bestMove = { state: newState, type: 'top-to-bottom-prev', from: col, to: col - 1 };
+                bestMoveImbalance = newImbalance;
+              }
+            }
+            
+            // Try moving to next column (bottom to top)
+            if (col < config.columnCount - 1) {
+              const newState = currentState.makeMove(col, col + 1, false);
+              const newImbalance = newState.getImbalance();
+              if (newImbalance < bestMoveImbalance) {
+                bestMove = { state: newState, type: 'bottom-to-top-next', from: col, to: col + 1 };
+                bestMoveImbalance = newImbalance;
+              }
+            }
+          }
+          
+          if (bestMove && bestMoveImbalance < currentState.getImbalance()) {
+            currentState = bestMove.state;
+            
+            if (bestMoveImbalance < bestImbalance) {
+              bestState = currentState.copy();
+              bestImbalance = bestMoveImbalance;
+              console.log(`Iteration ${iteration}: New best imbalance ${Math.round(bestImbalance)}px (${bestMove.type} from col ${bestMove.from} to ${bestMove.to})`);
+            }
+            
+            if (bestImbalance < 10) break; // Good enough
+          } else {
+            break; // No more improvements
+          }
         }
-      };
-
-      performVisualBalancing();
+        
+        // Step 4: Apply the best solution found
+        console.log(`Final best imbalance: ${Math.round(bestImbalance)}px`);
+        for (let i = 0; i < columnContents.length; i++) {
+          columnContents[i] = [...bestState.contents[i]!];
+        }
+        renderColumns();
+        
+        // Verify with actual DOM measurement
+        setTimeout(() => {
+          const actualBottoms = columnElements.map((column, index) => {
+            if (!column || !columnContents[index] || columnContents[index]!.length === 0) return 0;
+            const items = column.children;
+            if (items.length === 0) return 0;
+            const lastItem = items[items.length - 1] as HTMLElement;
+            return lastItem.getBoundingClientRect().bottom;
+          });
+          const actualImbalance = Math.max(...actualBottoms) - Math.min(...actualBottoms);
+          console.log(`Actual final imbalance: ${Math.round(actualImbalance)}px`);
+        }, 100);
+        
+      }, 100);
     }, 200);
   };
 
