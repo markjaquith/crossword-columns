@@ -168,7 +168,7 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
     let firstRow = '';
     for (let col = 1; col <= config.columnCount; col++) {
       if (col > puzzleStartCol && col <= config.columnCount) {
-        firstRow += 'puzzle ';
+        firstRow += 'puzl ';
       } else {
         firstRow += `col${col} `;
       }
@@ -300,7 +300,7 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
         <div style={{ marginBottom: '4px' }}>
           <strong>Grid Template Areas:</strong><br />
           <code style={{ fontSize: '10px', background: '#f5f5f5', padding: '2px 4px', borderRadius: '2px', display: 'block', whiteSpace: 'pre-wrap' }}>
-            {gridTemplateAreas.replace(/"/g, '"\n').replace(/\n$/, '')}
+            {gridTemplateAreas.replace(/" "/g, '"\n"')}
           </code>
         </div>
       </div>
@@ -434,7 +434,7 @@ const CrosswordLayout: React.FC = () => {
     let firstRow = '';
     for (let col = 1; col <= config.columnCount; col++) {
       if (col > puzzleStartCol && col <= config.columnCount) {
-        firstRow += 'puzzle ';
+        firstRow += 'puzl ';
       } else {
         firstRow += `col${col} `;
       }
@@ -480,7 +480,7 @@ const CrosswordLayout: React.FC = () => {
       >
         <div
           style={{
-            gridArea: 'puzzle',
+            gridArea: 'puzl',
             width: `${config.puzzleWidth}px`,
             height: `${config.puzzleHeight}px`,
             background: '#333',
