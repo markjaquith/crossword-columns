@@ -66,7 +66,7 @@ This project is automatically deployed to GitHub Pages via GitHub Actions when c
 - **Column Gap**: Horizontal spacing between columns
 - **Row Gap**: Vertical spacing between rows
 - **Item Gap**: Padding within each clue item
-- **Overshoot Allowance**: Tolerance for column height differences
+- **Pixel-Perfect Alignment**: Add dynamic spacing for exact height matching
 
 ## Balancing Algorithm
 

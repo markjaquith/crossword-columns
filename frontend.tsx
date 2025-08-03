@@ -19,7 +19,7 @@ interface Config {
   columnGap: number;
   rowGap: number;
   itemGap: number;
-  overshootAllowance: number;
+  pixelPerfectAlignment: boolean;
 }
 
 const sampleClues: ClueSet = {
@@ -307,15 +307,18 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
       </div>
 
       <div style={{ marginBottom: '8px' }}>
-        <label style={{ display: 'block', marginBottom: '2px' }}>Overshoot Allowance:</label>
-        <input
-          type="number"
-          min="0"
-          max="100"
-          value={config.overshootAllowance}
-          onChange={(e) => onChange({ ...config, overshootAllowance: parseInt((e.target as HTMLInputElement).value) })}
-          style={{ width: '60px', padding: '2px' }}
-        />
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={config.pixelPerfectAlignment}
+            onChange={(e) => onChange({ ...config, pixelPerfectAlignment: (e.target as HTMLInputElement).checked })}
+            style={{ margin: '0' }}
+          />
+          <span style={{ fontSize: '14px' }}>Pixel-Perfect Alignment</span>
+        </label>
+        <div style={{ fontSize: '11px', color: '#666', marginTop: '2px', marginLeft: '20px' }}>
+          Add dynamic spacing for exact height matching
+        </div>
       </div>
 
       <hr style={{ margin: '15px 0', border: 'none', borderTop: '1px solid #ddd' }} />
@@ -401,7 +404,7 @@ const defaultConfig: Config = {
   columnGap: 10,
   rowGap: 10,
   itemGap: 2,
-  overshootAllowance: 0,
+  pixelPerfectAlignment: false,
 };
 
 const CrosswordLayout: React.FC = () => {
@@ -417,6 +420,7 @@ const CrosswordLayout: React.FC = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [columnElements, setColumnElements] = useState<HTMLDivElement[]>([]);
+  const [columnContents, setColumnContents] = useState<any[][]>([]);
 
   // Save config to localStorage whenever it changes
   const updateConfig = (newConfig: Config) => {
@@ -436,6 +440,58 @@ const CrosswordLayout: React.FC = () => {
     } catch (error) {
       console.warn('Failed to clear config from localStorage:', error);
     }
+  };
+
+  // Recalculate dynamic spacing for perfect alignment
+  const recalculateSpacing = () => {
+    if (!config.pixelPerfectAlignment || columnElements.length === 0 || columnContents.length === 0) return;
+    
+    setTimeout(() => {
+      // Measure current bottom positions
+      const actualBottoms = columnElements.map((column, index) => {
+        if (!column || !columnContents[index] || columnContents[index]!.length === 0) return 0;
+        const items = column.children;
+        if (items.length === 0) return 0;
+        const lastItem = items[items.length - 1] as HTMLElement;
+        return lastItem.getBoundingClientRect().bottom;
+      });
+      
+      const maxBottom = Math.max(...actualBottoms);
+      
+      // Calculate new dynamic spacing
+      const newDynamicSpacing = actualBottoms.map((bottom, colIndex) => {
+        const itemCount = columnContents[colIndex]!.length;
+        if (itemCount <= 1) return 0;
+        
+        const heightDeficit = maxBottom - bottom;
+        const spacingPerGap = heightDeficit / (itemCount - 1);
+        return Math.max(0, spacingPerGap);
+      });
+      
+      // Re-render with new spacing
+      columnElements.forEach((column, index) => {
+        if (column && columnContents[index]) {
+          const extraSpacing = newDynamicSpacing[index] || 0;
+          
+          (column as HTMLDivElement).innerHTML = columnContents[index]!.map((item, itemIndex) => {
+            const backgroundColor = itemIndex % 2 === 0 ? 'rgba(0, 0, 0, 0.05)' : 'rgba(0, 0, 0, 0.1)';
+            const isLastItem = itemIndex === columnContents[index]!.length - 1;
+            const bottomMargin = isLastItem ? 0 : extraSpacing;
+            
+            if (item.type === 'header') {
+              const topMargin = itemIndex === 0 ? 0 : 15;
+              const verticalPadding = 5 + config.itemGap;
+              return `<div style="font-weight: bold; font-size: 16px; margin: ${topMargin}px 0 ${bottomMargin}px 0; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px; background-color: ${backgroundColor}; padding: ${verticalPadding}px 5px;">${item.content}</div>`;
+            } else {
+              const verticalPadding = 2 + config.itemGap;
+              return `<div style="font-size: 14px; line-height: 1.4; background-color: ${backgroundColor}; padding: ${verticalPadding}px 4px; margin-bottom: ${bottomMargin}px;">${item.content}</div>`;
+            }
+          }).join('');
+        }
+      });
+      
+      console.log('Dynamic spacing recalculated:', newDynamicSpacing.map(s => `${Math.round(s)}px`));
+    }, 50);
   };
 
   const columnColors = [
@@ -561,17 +617,16 @@ const CrosswordLayout: React.FC = () => {
         console.log(`    Column ${col}: ${colHeight}px / ${colTarget}px (${progress}%)`);
       }
       
-      // Only switch when adding this item would overshoot the target + allowance
-      if (currentColumn < config.columnCount - 1) {
-        const wouldOvershoot = (currentHeight + item.height) > (currentTarget + config.overshootAllowance);
-        
-        // Switch only if we would overshoot
-        if (wouldOvershoot) {
-          console.log(`  -> Moving to column ${currentColumn + 1} (would overshoot: ${currentHeight + item.height} > ${currentTarget + config.overshootAllowance})`);
-          currentColumn++;
+        // Only switch when adding this item would overshoot the target
+        if (currentColumn < config.columnCount - 1) {
+          const wouldOvershoot = (currentHeight + item.height) > currentTarget;
+          
+          // Switch only if we would overshoot
+          if (wouldOvershoot) {
+            console.log(`  -> Moving to column ${currentColumn + 1} (would overshoot: ${currentHeight + item.height} > ${currentTarget})`);
+            currentColumn++;
+          }
         }
-      }
-
       columnContents[currentColumn]!.push(item);
       columnHeights[currentColumn] += item.height;
       
@@ -709,20 +764,32 @@ const CrosswordLayout: React.FC = () => {
       console.log(`Column ${col}: ${Math.round(colHeight)}px / ${Math.round(colTarget)}px (${progress}%) - ${itemCount} items${itemsInfo}`);
     }
 
-    // Render initial distribution
-    const renderColumns = () => {
+    // Store dynamic spacing for recalculation
+    let currentDynamicSpacing: number[] = Array(config.columnCount).fill(0);
+    
+    // Render columns with optional dynamic spacing
+    const renderColumns = (dynamicSpacing?: number[]) => {
+      if (dynamicSpacing) {
+        currentDynamicSpacing = [...dynamicSpacing];
+      }
+      
       columnElements.forEach((column, index) => {
         if (column && columnContents[index]) {
+          const extraSpacing = currentDynamicSpacing[index] || 0;
+          
           (column as HTMLDivElement).innerHTML = columnContents[index]!.map((item, itemIndex) => {
             const backgroundColor = itemIndex % 2 === 0 ? 'rgba(0, 0, 0, 0.05)' : 'rgba(0, 0, 0, 0.1)';
+            const isLastItem = itemIndex === columnContents[index]!.length - 1;
+            const bottomMargin = isLastItem ? 0 : extraSpacing;
+            
             if (item.type === 'header') {
               // First header in column gets no top margin
               const topMargin = itemIndex === 0 ? 0 : 15;
               const verticalPadding = 5 + config.itemGap;
-              return `<div style="font-weight: bold; font-size: 16px; margin: ${topMargin}px 0 0 0; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px; background-color: ${backgroundColor}; padding: ${verticalPadding}px 5px;">${item.content}</div>`;
+              return `<div style="font-weight: bold; font-size: 16px; margin: ${topMargin}px 0 ${bottomMargin}px 0; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px; background-color: ${backgroundColor}; padding: ${verticalPadding}px 5px;">${item.content}</div>`;
             } else {
               const verticalPadding = 2 + config.itemGap;
-              return `<div style="font-size: 14px; line-height: 1.4; background-color: ${backgroundColor}; padding: ${verticalPadding}px 4px;">${item.content}</div>`;
+              return `<div style="font-size: 14px; line-height: 1.4; background-color: ${backgroundColor}; padding: ${verticalPadding}px 4px; margin-bottom: ${bottomMargin}px;">${item.content}</div>`;
             }
           }).join('');
         }
@@ -867,13 +934,19 @@ const CrosswordLayout: React.FC = () => {
         
         // Step 4: Apply the best solution found
         console.log(`Final best imbalance: ${Math.round(bestImbalance)}px`);
-        for (let i = 0; i < columnContents.length; i++) {
-          columnContents[i] = [...bestState.contents[i]!];
+        const newColumnContents = [];
+        for (let i = 0; i < config.columnCount; i++) {
+          newColumnContents[i] = [...bestState.contents[i]!];
         }
+        setColumnContents(newColumnContents);
         renderColumns();
         
-        // Verify with actual DOM measurement
-        setTimeout(() => {
+        // Step 5: Final height equalization with dynamic spacing (if enabled)
+        if (config.pixelPerfectAlignment) {
+          setTimeout(() => {
+            console.log('=== FINAL HEIGHT EQUALIZATION ===');
+          
+          // Measure actual bottom positions after balancing
           const actualBottoms = columnElements.map((column, index) => {
             if (!column || !columnContents[index] || columnContents[index]!.length === 0) return 0;
             const items = column.children;
@@ -881,9 +954,73 @@ const CrosswordLayout: React.FC = () => {
             const lastItem = items[items.length - 1] as HTMLElement;
             return lastItem.getBoundingClientRect().bottom;
           });
-          const actualImbalance = Math.max(...actualBottoms) - Math.min(...actualBottoms);
-          console.log(`Actual final imbalance: ${Math.round(actualImbalance)}px`);
+          
+          const maxBottom = Math.max(...actualBottoms);
+          const actualImbalance = maxBottom - Math.min(...actualBottoms);
+          console.log(`Before equalization: ${Math.round(actualImbalance)}px imbalance`);
+          
+          // Calculate dynamic spacing for each column
+          const dynamicSpacing = actualBottoms.map((bottom, colIndex) => {
+            const itemCount = columnContents[colIndex]!.length;
+            if (itemCount <= 1) return 0; // Can't add spacing with 0 or 1 items
+            
+            const heightDeficit = maxBottom - bottom;
+            const spacingPerGap = heightDeficit / (itemCount - 1);
+            return Math.max(0, spacingPerGap); // Don't allow negative spacing
+          });
+          
+          console.log('Dynamic spacing per gap:', dynamicSpacing.map(s => `${Math.round(s)}px`));
+          
+          // Re-render with dynamic spacing
+          const renderColumnsWithSpacing = () => {
+            columnElements.forEach((column, index) => {
+              if (column && columnContents[index]) {
+                const extraSpacing = dynamicSpacing[index]!;
+                
+                (column as HTMLDivElement).innerHTML = columnContents[index]!.map((item, itemIndex) => {
+                  const backgroundColor = itemIndex % 2 === 0 ? 'rgba(0, 0, 0, 0.05)' : 'rgba(0, 0, 0, 0.1)';
+                  const isLastItem = itemIndex === columnContents[index]!.length - 1;
+                  const bottomMargin = isLastItem ? 0 : extraSpacing; // Add spacing between items, not after last
+                  
+                  if (item.type === 'header') {
+                    // First header in column gets no top margin
+                    const topMargin = itemIndex === 0 ? 0 : 15;
+                    const verticalPadding = 5 + config.itemGap;
+                    return `<div style="font-weight: bold; font-size: 16px; margin: ${topMargin}px 0 ${bottomMargin}px 0; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px; background-color: ${backgroundColor}; padding: ${verticalPadding}px 5px;">${item.content}</div>`;
+                  } else {
+                    const verticalPadding = 2 + config.itemGap;
+                    return `<div style="font-size: 14px; line-height: 1.4; background-color: ${backgroundColor}; padding: ${verticalPadding}px 4px; margin-bottom: ${bottomMargin}px;">${item.content}</div>`;
+                  }
+                }).join('');
+              }
+            });
+          };
+          
+          renderColumns(dynamicSpacing);
+          
+          // Verify final alignment
+          setTimeout(() => {
+            const finalBottoms = columnElements.map((column, index) => {
+              if (!column || !columnContents[index] || columnContents[index]!.length === 0) return 0;
+              const items = column.children;
+              if (items.length === 0) return 0;
+              const lastItem = items[items.length - 1] as HTMLElement;
+              return lastItem.getBoundingClientRect().bottom;
+            });
+            
+            const finalImbalance = Math.max(...finalBottoms) - Math.min(...finalBottoms);
+            console.log(`After equalization: ${Math.round(finalImbalance)}px imbalance`);
+            console.log('Final column bottoms:', finalBottoms.map(b => `${Math.round(b)}px`));
+            
+            if (finalImbalance < 2) {
+              console.log('✅ Perfect alignment achieved!');
+            } else {
+              console.log(`⚠️  ${Math.round(finalImbalance)}px imbalance remaining`);
+            }
+          }, 100);
+          
         }, 100);
+        } // End of pixel-perfect alignment conditional
         
       }, 100);
     }, 200);
@@ -906,6 +1043,16 @@ const CrosswordLayout: React.FC = () => {
     }, 100);
     return () => clearTimeout(timer);
   }, [config, columnElements]);
+
+  // Recalculate spacing when config changes (after balancing is done)
+  useEffect(() => {
+    if (columnContents.length > 0) {
+      const timer = setTimeout(() => {
+        recalculateSpacing();
+      }, 500); // Wait for balancing to complete
+      return () => clearTimeout(timer);
+    }
+  }, [config.itemGap, config.columnGap, config.rowGap, config.pixelPerfectAlignment]); // Recalculate when spacing-related config changes
 
   const puzzleStartCol = config.columnCount - config.puzzleColSpan;
 
