@@ -135,16 +135,17 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
     tempDiv.style.fontSize = isHeader ? '16px' : '14px';
     tempDiv.style.lineHeight = '1.4';
     tempDiv.style.fontWeight = isHeader ? 'bold' : 'normal';
-    tempDiv.style.marginBottom = `${config.itemGap}px`;
     
     if (isHeader) {
-      tempDiv.style.margin = `15px 0 ${config.itemGap}px 0`;
+      tempDiv.style.margin = `15px 0 0 0`;
       tempDiv.style.textTransform = 'uppercase';
       tempDiv.style.borderBottom = '1px solid #ccc';
       tempDiv.style.paddingBottom = '5px';
-      tempDiv.style.padding = '5px';
+      const verticalPadding = 5 + config.itemGap;
+      tempDiv.style.padding = `${verticalPadding}px 5px`;
     } else {
-      tempDiv.style.padding = '2px 4px';
+      const verticalPadding = 2 + config.itemGap;
+      tempDiv.style.padding = `${verticalPadding}px 4px`;
     }
     
     tempDiv.innerHTML = content;
@@ -413,18 +414,19 @@ const CrosswordLayout: React.FC = () => {
     tempDiv.style.padding = '10px'; // Same as column padding
     tempDiv.style.fontFamily = 'Arial, sans-serif';
     tempDiv.style.fontSize = isHeader ? '16px' : '14px';
-    tempDiv.style.lineHeight = isHeader ? '1.4' : '1.4';
+    tempDiv.style.lineHeight = '1.4';
     tempDiv.style.fontWeight = isHeader ? 'bold' : 'normal';
-    tempDiv.style.marginBottom = `${config.itemGap}px`;
     
     if (isHeader) {
-      tempDiv.style.margin = `15px 0 ${config.itemGap}px 0`;
+      tempDiv.style.margin = `15px 0 0 0`;
       tempDiv.style.textTransform = 'uppercase';
       tempDiv.style.borderBottom = '1px solid #ccc';
       tempDiv.style.paddingBottom = '5px';
-      tempDiv.style.padding = '5px';
+      const verticalPadding = 5 + config.itemGap;
+      tempDiv.style.padding = `${verticalPadding}px 5px`;
     } else {
-      tempDiv.style.padding = '2px 4px';
+      const verticalPadding = 2 + config.itemGap;
+      tempDiv.style.padding = `${verticalPadding}px 4px`;
     }
     
     tempDiv.innerHTML = content;
@@ -669,9 +671,11 @@ const CrosswordLayout: React.FC = () => {
             if (item.type === 'header') {
               // First header in column gets no top margin
               const topMargin = itemIndex === 0 ? 0 : 15;
-              return `<div style="font-weight: bold; font-size: 16px; margin: ${topMargin}px 0 ${config.itemGap}px 0; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px; background-color: ${backgroundColor}; padding: 5px;">${item.content}</div>`;
+              const verticalPadding = 5 + config.itemGap;
+              return `<div style="font-weight: bold; font-size: 16px; margin: ${topMargin}px 0 0 0; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px; background-color: ${backgroundColor}; padding: ${verticalPadding}px 5px;">${item.content}</div>`;
             } else {
-              return `<div style="margin-bottom: ${config.itemGap}px; font-size: 14px; line-height: 1.4; background-color: ${backgroundColor}; padding: 2px 4px;">${item.content}</div>`;
+              const verticalPadding = 2 + config.itemGap;
+              return `<div style="font-size: 14px; line-height: 1.4; background-color: ${backgroundColor}; padding: ${verticalPadding}px 4px;">${item.content}</div>`;
             }
           }).join('');
         }
