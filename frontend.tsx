@@ -184,6 +184,7 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
   };
   
   const gridTemplateAreas = generateGridTemplateAreas();
+  const gridTemplateRows = `${config.puzzleHeight}px auto`;
   const totalRows = 2; // Always 2 rows
   
   // Calculate content heights for display
@@ -191,14 +192,28 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
   const clueHeight = 25;
   const totalContentHeight = (2 * headerHeight) + ((sampleClues.across.length + sampleClues.down.length) * clueHeight);
   
-  // Calculate target heights for affected vs unaffected columns
+  // Calculate target heights algebraically
+  // Let U = unaffected column height, A = affected column height
+  // Constraint: U must be >= puzzle height (so puzzle doesn't extend below unaffected columns)
+  // Equation: unaffectedColumns * U + affectedColumns * A = totalContentHeight
+  
   const unaffectedColumns = config.columnCount - config.puzzleColSpan;
   const affectedColumns = config.puzzleColSpan;
+  
+  // Try setting U = puzzle height (minimum), solve for A
   const minUnaffectedHeight = config.puzzleHeight;
-  const idealUnaffectedHeight = Math.max(minUnaffectedHeight, totalContentHeight / config.columnCount);
-  const totalUnaffectedHeight = idealUnaffectedHeight * unaffectedColumns;
-  const remainingContentHeight = Math.max(0, totalContentHeight - totalUnaffectedHeight);
-  const idealAffectedHeight = remainingContentHeight / affectedColumns;
+  const tentativeAffectedHeight = (totalContentHeight - (unaffectedColumns * minUnaffectedHeight)) / affectedColumns;
+  
+  // If A would be negative, we need equal distribution
+  if (tentativeAffectedHeight < 0) {
+    const equalHeight = totalContentHeight / config.columnCount;
+    var idealUnaffectedHeight = equalHeight;
+    var finalAffectedHeight = equalHeight;
+  } else {
+    // A is positive, so we can use minimum U and calculated A
+    var idealUnaffectedHeight = minUnaffectedHeight;
+    var finalAffectedHeight = tentativeAffectedHeight;
+  }
   return (
     <div style={{
       position: 'fixed',
@@ -243,7 +258,7 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
         <label style={{ display: 'block', marginBottom: '2px' }}>Puzzle Height:</label>
         <input
           type="number"
-          min="200"
+          min="0"
           max="1200"
           step="50"
           value={config.puzzleHeight}
@@ -268,7 +283,7 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
         <label style={{ display: 'block', marginBottom: '2px' }}>Column Gap:</label>
         <input
           type="number"
-          min="5"
+          min="0"
           max="50"
           value={config.columnGap}
           onChange={(e) => onChange({ ...config, columnGap: parseInt((e.target as HTMLInputElement).value) })}
@@ -280,7 +295,7 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
         <label style={{ display: 'block', marginBottom: '2px' }}>Row Gap:</label>
         <input
           type="number"
-          min="5"
+          min="0"
           max="50"
           value={config.rowGap}
           onChange={(e) => onChange({ ...config, rowGap: parseInt((e.target as HTMLInputElement).value) })}
@@ -312,12 +327,21 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
           <strong>Unaffected Target:</strong> {Math.round(idealUnaffectedHeight)}px
         </div>
         <div style={{ marginBottom: '4px' }}>
-          <strong>Affected Target:</strong> {Math.round(idealAffectedHeight)}px
+          <strong>Affected Target:</strong> {Math.round(finalAffectedHeight)}px
+        </div>
+        <div style={{ marginBottom: '4px' }}>
+          <strong>Verification:</strong> {Math.round(unaffectedColumns * idealUnaffectedHeight + affectedColumns * finalAffectedHeight)}px = {Math.round(totalContentHeight)}px
         </div>
         <div style={{ marginBottom: '4px' }}>
           <strong>Grid Template Columns:</strong><br />
           <code style={{ fontSize: '11px', background: '#f5f5f5', padding: '2px 4px', borderRadius: '2px' }}>
             {gridTemplateColumns}
+          </code>
+        </div>
+        <div style={{ marginBottom: '4px' }}>
+          <strong>Grid Template Rows:</strong><br />
+          <code style={{ fontSize: '11px', background: '#f5f5f5', padding: '2px 4px', borderRadius: '2px' }}>
+            {gridTemplateRows}
           </code>
         </div>
         <div style={{ marginBottom: '4px' }}>
@@ -384,23 +408,51 @@ const CrosswordLayout: React.FC = () => {
   const balanceColumns = () => {
     if (columnElements.length === 0) return;
 
+    // Calculate target heights using the same logic as ConfigPanel
+    const headerHeight = 30;
+    const clueHeight = 25;
+    const totalContentHeight = (2 * headerHeight) + ((sampleClues.across.length + sampleClues.down.length) * clueHeight);
+    
+    const unaffectedColumns = config.columnCount - config.puzzleColSpan;
+    const affectedColumns = config.puzzleColSpan;
+    const puzzleStartCol = config.columnCount - config.puzzleColSpan;
+    
+    // Calculate target heights algebraically
+    const minUnaffectedHeight = config.puzzleHeight;
+    const idealAffectedHeight = (totalContentHeight - (unaffectedColumns * minUnaffectedHeight)) / affectedColumns;
+    
+    const idealUnaffectedHeight = idealAffectedHeight < 0 
+      ? totalContentHeight / config.columnCount 
+      : minUnaffectedHeight;
+    
+    const finalAffectedHeight = idealAffectedHeight < 0
+      ? totalContentHeight / config.columnCount
+      : idealAffectedHeight;
+
     const allClues = [
-      { type: 'header', content: 'ACROSS', height: 30 },
+      { type: 'header', content: 'ACROSS', height: headerHeight },
       ...sampleClues.across.map(clue => ({ 
         type: 'clue', 
         content: `${clue.number}. ${clue.text}`, 
-        height: 25 
+        height: clueHeight 
       })),
-      { type: 'header', content: 'DOWN', height: 30 },
+      { type: 'header', content: 'DOWN', height: headerHeight },
       ...sampleClues.down.map(clue => ({ 
         type: 'clue', 
         content: `${clue.number}. ${clue.text}`, 
-        height: 25 
+        height: clueHeight 
       })),
     ];
 
-    const totalHeight = allClues.reduce((sum, item) => sum + item.height, 0);
-    const targetHeightPerColumn = totalHeight / config.columnCount;
+    // Create target heights array for each column
+    const targetHeights = [];
+    for (let i = 0; i < config.columnCount; i++) {
+      if (i >= puzzleStartCol) {
+        targetHeights.push(finalAffectedHeight);
+      } else {
+        targetHeights.push(idealUnaffectedHeight);
+      }
+    }
 
     const columnContents: any[][] = Array(config.columnCount).fill(null).map(() => []);
     const columnHeights = Array(config.columnCount).fill(0);
@@ -408,9 +460,13 @@ const CrosswordLayout: React.FC = () => {
     let currentColumn = 0;
 
     for (const item of allClues) {
-      if (currentColumn < config.columnCount - 1 && 
-          columnHeights[currentColumn] + item.height > targetHeightPerColumn * 1.1 &&
-          columnHeights[currentColumn] >= targetHeightPerColumn * 0.8) {
+      const currentTarget = targetHeights[currentColumn];
+      const currentHeight = columnHeights[currentColumn];
+      const wouldExceedTarget = (currentHeight + item.height) > currentTarget * 1.1;
+      const hasReachedMinTarget = currentHeight >= currentTarget * 0.8;
+      
+      // Move to next column if we would exceed target and have reached minimum
+      if (currentColumn < config.columnCount - 1 && wouldExceedTarget && hasReachedMinTarget) {
         currentColumn++;
       }
 
@@ -473,7 +529,8 @@ const CrosswordLayout: React.FC = () => {
   };
 
   const gridTemplateAreas = generateGridTemplateAreas();
-  const gridTemplateColumns = `repeat(${config.columnCount}, ${columnWidth}px)`;  
+  const gridTemplateColumns = `repeat(${config.columnCount}, ${columnWidth}px)`;
+  const gridTemplateRows = `${config.puzzleHeight}px auto`;  
   console.log('Generated Grid Template:', {
     gridTemplateColumns,
     gridTemplateAreas,
@@ -493,6 +550,7 @@ const CrosswordLayout: React.FC = () => {
         style={{
           display: 'grid',
           gridTemplateColumns: `repeat(${config.columnCount}, ${columnWidth}px)`,
+          gridTemplateRows: gridTemplateRows,
           gridTemplateAreas: gridTemplateAreas,
           gap: `${config.rowGap}px ${config.columnGap}px`,
           width: `${containerWidth}px`,
