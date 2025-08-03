@@ -18,6 +18,7 @@ interface Config {
   puzzleColSpan: number;
   columnGap: number;
   rowGap: number;
+  itemGap: number;
 }
 
 const sampleClues: ClueSet = {
@@ -303,6 +304,18 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
         />
       </div>
 
+      <div style={{ marginBottom: '8px' }}>
+        <label style={{ display: 'block', marginBottom: '2px' }}>Item Gap:</label>
+        <input
+          type="number"
+          min="0"
+          max="20"
+          value={config.itemGap}
+          onChange={(e) => onChange({ ...config, itemGap: parseInt((e.target as HTMLInputElement).value) })}
+          style={{ width: '60px', padding: '2px' }}
+        />
+      </div>
+
       <hr style={{ margin: '15px 0', border: 'none', borderTop: '1px solid #ddd' }} />
       
       <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#666' }}>Generated Values</h4>
@@ -386,6 +399,7 @@ const CrosswordLayout: React.FC = () => {
     puzzleColSpan: 1,
     columnGap: 0,
     rowGap: 0,
+    itemGap: 0,
   });
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -476,11 +490,12 @@ const CrosswordLayout: React.FC = () => {
 
     columnElements.forEach((column, index) => {
       if (column && columnContents[index]) {
-        (column as HTMLDivElement).innerHTML = columnContents[index]!.map(item => {
+        (column as HTMLDivElement).innerHTML = columnContents[index]!.map((item, itemIndex) => {
+          const backgroundColor = itemIndex % 2 === 0 ? 'rgba(0, 0, 0, 0.05)' : 'rgba(0, 0, 0, 0.1)';
           if (item.type === 'header') {
-            return `<div style="font-weight: bold; font-size: 16px; margin: 15px 0 10px 0; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px;">${item.content}</div>`;
+            return `<div style="font-weight: bold; font-size: 16px; margin: 15px 0 ${config.itemGap}px 0; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px; background-color: ${backgroundColor}; padding: 5px;">${item.content}</div>`;
           } else {
-            return `<div style="margin-bottom: 8px; font-size: 14px; line-height: 1.4;">${item.content}</div>`;
+            return `<div style="margin-bottom: ${config.itemGap}px; font-size: 14px; line-height: 1.4; background-color: ${backgroundColor}; padding: 2px 4px;">${item.content}</div>`;
           }
         }).join('');
       }
