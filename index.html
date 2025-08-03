@@ -370,22 +370,28 @@
                 const puzzleStartCol = CONFIG.columnCount - CONFIG.puzzleColSpan;
                 const puzzleEndCol = CONFIG.columnCount - 1;
                 
-                // Calculate available height for each column type
-                const fullColumnHeight = totalContentHeight / CONFIG.columnCount;
-                const puzzleAffectedHeight = Math.max(0, fullColumnHeight - CONFIG.puzzleHeight);
-                
-                // Calculate how much extra height the puzzle-affected columns lose
-                const heightDeficit = (fullColumnHeight - puzzleAffectedHeight) * CONFIG.puzzleColSpan;
+                // For unaffected columns (1-2), they should be at least as tall as the puzzle
+                // For affected columns (3-5), they have space below the puzzle
+                const minUnaffectedHeight = CONFIG.puzzleHeight;
                 const unaffectedColumns = CONFIG.columnCount - CONFIG.puzzleColSpan;
-                const extraHeightPerUnaffectedColumn = unaffectedColumns > 0 ? heightDeficit / unaffectedColumns : 0;
+                const affectedColumns = CONFIG.puzzleColSpan;
+                
+                // Calculate how much content the unaffected columns should take
+                // They need to be at least puzzle height, but can be taller to balance
+                const idealUnaffectedHeight = Math.max(minUnaffectedHeight, totalContentHeight / CONFIG.columnCount);
+                const totalUnaffectedHeight = idealUnaffectedHeight * unaffectedColumns;
+                
+                // Remaining content goes to affected columns
+                const remainingContentHeight = Math.max(0, totalContentHeight - totalUnaffectedHeight);
+                const idealAffectedHeight = remainingContentHeight / affectedColumns;
                 
                 // Target heights for each column
                 const targetHeights = [];
                 for (let i = 0; i < CONFIG.columnCount; i++) {
                     if (i >= puzzleStartCol && i <= puzzleEndCol) {
-                        targetHeights.push(puzzleAffectedHeight);
+                        targetHeights.push(idealAffectedHeight);
                     } else {
-                        targetHeights.push(fullColumnHeight + extraHeightPerUnaffectedColumn);
+                        targetHeights.push(idealUnaffectedHeight);
                     }
                 }
                 
@@ -394,8 +400,11 @@
                     puzzleEndCol,
                     targetHeights,
                     totalContentHeight,
-                    fullColumnHeight,
-                    puzzleAffectedHeight
+                    minUnaffectedHeight,
+                    idealUnaffectedHeight,
+                    idealAffectedHeight,
+                    unaffectedColumns,
+                    affectedColumns
                 });
 
                 // Distribute content to achieve target heights while preserving order
@@ -403,33 +412,42 @@
                 const columnHeights = Array(CONFIG.columnCount).fill(0);
                 
                 let currentColumn = 0;
-                let itemsPerColumn = Math.ceil(contentItems.length / CONFIG.columnCount);
-                let itemsInCurrentColumn = 0;
                 
                 for (let itemIndex = 0; itemIndex < contentItems.length; itemIndex++) {
                     const item = contentItems[itemIndex];
                     
-                    // Move to next column if we've reached the target items per column
-                    // or if current column is significantly over its target height
-                    const currentColumnRemaining = targetHeights[currentColumn] - columnHeights[currentColumn];
-                    const shouldMoveToNext = 
-                        itemsInCurrentColumn >= itemsPerColumn || 
-                        (columnHeights[currentColumn] > targetHeights[currentColumn] * 0.8 && currentColumnRemaining < item.height);
+                    // Check if we should move to the next column
+                    const currentTarget = targetHeights[currentColumn];
+                    const currentHeight = columnHeights[currentColumn];
+                    const wouldExceedTarget = (currentHeight + item.height) > currentTarget * 1.1;
+                    const hasReachedMinTarget = currentHeight >= currentTarget * 0.8;
                     
-                    if (shouldMoveToNext && currentColumn < CONFIG.columnCount - 1) {
+                    // Move to next column if:
+                    // 1. We would significantly exceed the target, AND
+                    // 2. We've reached at least 80% of the target, AND
+                    // 3. We're not on the last column
+                    if (wouldExceedTarget && hasReachedMinTarget && currentColumn < CONFIG.columnCount - 1) {
                         currentColumn++;
-                        itemsInCurrentColumn = 0;
-                        // Recalculate items per remaining column
-                        const remainingItems = contentItems.length - itemIndex;
-                        const remainingColumns = CONFIG.columnCount - currentColumn;
-                        itemsPerColumn = Math.ceil(remainingItems / remainingColumns);
+                    }
+                    
+                    // If we're on the last few items and some columns are still empty, distribute them
+                    const remainingItems = contentItems.length - itemIndex;
+                    const emptyColumns = columnContents.filter(col => col.length === 0).length;
+                    
+                    if (remainingItems <= emptyColumns && emptyColumns > 0) {
+                        // Find the first empty column
+                        for (let i = 0; i < CONFIG.columnCount; i++) {
+                            if (columnContents[i].length === 0) {
+                                currentColumn = i;
+                                break;
+                            }
+                        }
                     }
                     
                     columnContents[currentColumn].push(item);
                     columnHeights[currentColumn] += item.height;
-                    itemsInCurrentColumn++;
                     
-                    console.log(`Item ${itemIndex}: placed in column ${currentColumn + 1}, height now ${columnHeights[currentColumn]}, target ${targetHeights[currentColumn]}, items in column: ${itemsInCurrentColumn}`);
+                    console.log(`Item ${itemIndex}: "${item.content.substring(0, 30)}..." placed in column ${currentColumn + 1}, height now ${Math.round(columnHeights[currentColumn])}, target ${Math.round(targetHeights[currentColumn])}`);
                 }
 
                 // Render the balanced content
