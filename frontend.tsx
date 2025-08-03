@@ -442,14 +442,14 @@ const DimensionOverlay: React.FC<{ width: number; height: number }> = ({ width, 
 
 const CrosswordLayout: React.FC = () => {
   const [config, setConfig] = useState<Config>({
-    columnCount: 2,
-    puzzleWidth: 450,
-    puzzleHeight: 600,
+    columnCount: 3,
+    puzzleWidth: 250,
+    puzzleHeight: 100,
     puzzleColSpan: 1,
     columnGap: 0,
     rowGap: 0,
     itemGap: 0,
-    overshootAllowance: 25,
+    overshootAllowance: 0,
   });
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -560,40 +560,30 @@ const CrosswordLayout: React.FC = () => {
     
     let currentColumn = 0;
 
-    let hasSeenColumnSwitch = false;
-    let itemsAfterSwitch = 0;
-    
     for (let itemIndex = 0; itemIndex < allClues.length; itemIndex++) {
       const item = allClues[itemIndex];
       const currentTarget = targetHeights[currentColumn]!;
       const currentHeight = columnHeights[currentColumn]!;
-      const previousColumn = currentColumn;
       
-      // Debug: log until first item after column switch
-      const shouldDebug = !hasSeenColumnSwitch || itemsAfterSwitch < 1;
+      // Debug: log ALL item placements
+      console.log(`Item ${itemIndex}: "${item.content}" (${item.height}px)`);
+      console.log(`  Current column ${currentColumn}: ${currentHeight}px / ${currentTarget}px (${Math.round(currentHeight/currentTarget*100)}%)`);
       
-      if (shouldDebug) {
-        console.log(`Item ${itemIndex}: "${item.content}" (${item.height}px)`);
-        console.log(`  Current column ${currentColumn}: ${currentHeight}px / ${currentTarget}px (${Math.round(currentHeight/currentTarget*100)}%)`);
-        if (currentColumn < config.columnCount - 1) {
-          const nextTarget = targetHeights[currentColumn + 1]!;
-          const nextHeight = columnHeights[currentColumn + 1]!;
-          console.log(`  Next column ${currentColumn + 1}: ${nextHeight}px / ${nextTarget}px (${Math.round(nextHeight/nextTarget*100)}%)`);
-        }
+      // Show all column states
+      for (let col = 0; col < config.columnCount; col++) {
+        const colTarget = targetHeights[col]!;
+        const colHeight = columnHeights[col]!;
+        const progress = colHeight > 0 ? Math.round(colHeight/colTarget*100) : 0;
+        console.log(`    Column ${col}: ${colHeight}px / ${colTarget}px (${progress}%)`);
       }
       
-      // Better balancing: only switch when current column is getting close to its target
-      // AND adding this item would significantly overshoot
+      // Only switch when adding this item would overshoot the target + allowance
       if (currentColumn < config.columnCount - 1) {
-        const nextTarget = targetHeights[currentColumn + 1]!;
-        const nextHeight = columnHeights[currentColumn + 1]!;
-        
         const wouldOvershoot = (currentHeight + item.height) > (currentTarget + config.overshootAllowance);
-        const hasReachedMostOfTarget = currentHeight > currentTarget * 0.8;
         
-        // Only switch if we're close to target AND would overshoot by more than allowance
-        if (wouldOvershoot && hasReachedMostOfTarget) {
-          if (shouldDebug) console.log(`  -> Moving to column ${currentColumn + 1} (would overshoot: ${currentHeight + item.height} > ${currentTarget + config.overshootAllowance})`);
+        // Switch only if we would overshoot
+        if (wouldOvershoot) {
+          console.log(`  -> Moving to column ${currentColumn + 1} (would overshoot: ${currentHeight + item.height} > ${currentTarget + config.overshootAllowance})`);
           currentColumn++;
         }
       }
@@ -601,17 +591,138 @@ const CrosswordLayout: React.FC = () => {
       columnContents[currentColumn]!.push(item);
       columnHeights[currentColumn] += item.height;
       
-      if (shouldDebug) {
-        console.log(`  -> Placed in column ${currentColumn}, new height: ${columnHeights[currentColumn]}px`);
+      console.log(`  -> Placed in column ${currentColumn}, new height: ${columnHeights[currentColumn]}px`);
+      console.log(''); // Empty line for readability
+    }
+
+    // Secondary balancing: try moving items between adjacent columns to minimize overall variance
+    console.log('=== SECONDARY BALANCING ===');
+    let improved = true;
+    let iterations = 0;
+    const maxIterations = 20;
+    
+    // Calculate current variance (how spread out the progress percentages are)
+    const calculateVariance = () => {
+      const progresses = columnHeights.map((height, i) => height / targetHeights[i]!);
+      const avgProgress = progresses.reduce((sum, p) => sum + p, 0) / progresses.length;
+      return progresses.reduce((sum, p) => sum + Math.pow(p - avgProgress, 2), 0) / progresses.length;
+    };
+    
+    while (improved && iterations < maxIterations) {
+      improved = false;
+      iterations++;
+      console.log(`Balancing iteration ${iterations}`);
+      const currentVariance = calculateVariance();
+      
+      // Try moving items from top of column N to bottom of column N-1
+      for (let col = 1; col < config.columnCount; col++) {
+        if (columnContents[col]!.length > 0) {
+          const itemToMove = columnContents[col]![0]!;
+          
+          // Calculate new heights if we moved this item
+          const newHeight1 = columnHeights[col-1]! + itemToMove.height;
+          const newHeight2 = columnHeights[col]! - itemToMove.height;
+          
+          // Temporarily update heights to calculate new variance
+          const oldHeight1 = columnHeights[col-1]!;
+          const oldHeight2 = columnHeights[col]!;
+          columnHeights[col-1] = newHeight1;
+          columnHeights[col] = newHeight2;
+          const newVariance = calculateVariance();
+          
+          // Restore heights
+          columnHeights[col-1] = oldHeight1;
+          columnHeights[col] = oldHeight2;
+          
+          if (newVariance < currentVariance) {
+            console.log(`  Moving "${itemToMove.content}" from top of column ${col} to bottom of column ${col-1}`);
+            console.log(`    Variance: ${currentVariance.toFixed(4)} -> ${newVariance.toFixed(4)}`);
+            
+            // Move the item
+            columnContents[col-1]!.push(itemToMove);
+            columnContents[col]!.shift();
+            columnHeights[col-1] = newHeight1;
+            columnHeights[col] = newHeight2;
+            improved = true;
+            break; // Try one move per iteration
+          }
+        }
       }
       
-      // Track column switches
-      if (currentColumn !== previousColumn) {
-        hasSeenColumnSwitch = true;
-        itemsAfterSwitch = 0;
-      } else if (hasSeenColumnSwitch) {
-        itemsAfterSwitch++;
+      // Try moving items from bottom of column N to top of column N+1
+      if (!improved) {
+        for (let col = 0; col < config.columnCount - 1; col++) {
+          if (columnContents[col]!.length > 0) {
+            const itemToMove = columnContents[col]![columnContents[col]!.length - 1]!;
+            
+            // Calculate new heights if we moved this item
+            const newHeight1 = columnHeights[col]! - itemToMove.height;
+            const newHeight2 = columnHeights[col+1]! + itemToMove.height;
+            
+            // Temporarily update heights to calculate new variance
+            const oldHeight1 = columnHeights[col]!;
+            const oldHeight2 = columnHeights[col+1]!;
+            columnHeights[col] = newHeight1;
+            columnHeights[col+1] = newHeight2;
+            const newVariance = calculateVariance();
+            
+            // Restore heights
+            columnHeights[col] = oldHeight1;
+            columnHeights[col+1] = oldHeight2;
+            
+            if (newVariance < currentVariance) {
+              console.log(`  Moving "${itemToMove.content}" from bottom of column ${col} to top of column ${col+1}`);
+              console.log(`    Variance: ${currentVariance.toFixed(4)} -> ${newVariance.toFixed(4)}`);
+              
+              // Move the item
+              columnContents[col+1]!.unshift(itemToMove);
+              columnContents[col]!.pop();
+              columnHeights[col] = newHeight1;
+              columnHeights[col+1] = newHeight2;
+              improved = true;
+              break; // Try one move per iteration
+            }
+          }
+        }
       }
+      
+      if (improved) {
+        console.log(`  After iteration ${iterations}:`);
+        for (let col = 0; col < config.columnCount; col++) {
+          const colTarget = targetHeights[col]!;
+          const colHeight = columnHeights[col]!;
+          const progress = Math.round(colHeight/colTarget*100);
+          const items = columnContents[col]!;
+          
+          let itemsInfo = '';
+          if (items.length > 0) {
+            const first2 = items.slice(0, 2).map(item => `"${item.content}" (${item.height}px)`).join(', ');
+            const last2 = items.slice(-2).map(item => `"${item.content}" (${item.height}px)`).join(', ');
+            itemsInfo = ` | First: [${first2}] Last: [${last2}]`;
+          }
+          
+          console.log(`    Column ${col}: ${Math.round(colHeight)}px / ${Math.round(colTarget)}px (${progress}%)${itemsInfo}`);
+        }
+      }
+    }
+    
+    console.log(`Secondary balancing completed after ${iterations} iterations`);
+    console.log('=== FINAL RESULTS ===');
+    for (let col = 0; col < config.columnCount; col++) {
+      const colTarget = targetHeights[col]!;
+      const colHeight = columnHeights[col]!;
+      const progress = Math.round(colHeight/colTarget*100);
+      const itemCount = columnContents[col]!.length;
+      const items = columnContents[col]!;
+      
+      let itemsInfo = '';
+      if (items.length > 0) {
+        const first2 = items.slice(0, 2).map(item => `"${item.content}" (${item.height}px)`).join(', ');
+        const last2 = items.slice(-2).map(item => `"${item.content}" (${item.height}px)`).join(', ');
+        itemsInfo = ` | First: [${first2}] Last: [${last2}]`;
+      }
+      
+      console.log(`Column ${col}: ${Math.round(colHeight)}px / ${Math.round(colTarget)}px (${progress}%) - ${itemCount} items${itemsInfo}`);
     }
 
     columnElements.forEach((column, index) => {
