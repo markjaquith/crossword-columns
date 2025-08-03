@@ -443,9 +443,9 @@ const DimensionOverlay: React.FC<{ width: number; height: number }> = ({ width, 
 const CrosswordLayout: React.FC = () => {
   const [config, setConfig] = useState<Config>({
     columnCount: 3,
-    puzzleWidth: 250,
-    puzzleHeight: 100,
-    puzzleColSpan: 1,
+    puzzleWidth: 550,
+    puzzleHeight: 600,
+    puzzleColSpan: 2,
     columnGap: 0,
     rowGap: 0,
     itemGap: 0,
