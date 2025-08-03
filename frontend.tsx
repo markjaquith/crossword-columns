@@ -333,12 +333,12 @@ const DimensionOverlay: React.FC<{ width: number; height: number }> = ({ width, 
 
 const CrosswordLayout: React.FC = () => {
   const [config, setConfig] = useState<Config>({
-    columnCount: 5,
-    puzzleWidth: 700,
-    puzzleHeight: 900,
-    puzzleColSpan: 3,
-    columnGap: 20,
-    rowGap: 20,
+    columnCount: 2,
+    puzzleWidth: 450,
+    puzzleHeight: 600,
+    puzzleColSpan: 1,
+    columnGap: 0,
+    rowGap: 0,
   });
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -484,7 +484,6 @@ const CrosswordLayout: React.FC = () => {
             width: `${config.puzzleWidth}px`,
             height: `${config.puzzleHeight}px`,
             background: '#333',
-            border: '2px solid #000',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -507,8 +506,6 @@ const CrosswordLayout: React.FC = () => {
               gridArea: `col${i + 1}`,
               background: columnColors[i % columnColors.length],
               padding: '10px',
-              borderRadius: '4px',
-              border: '1px solid #ddd',
               position: 'relative',
               minHeight: '100px',
             }}
