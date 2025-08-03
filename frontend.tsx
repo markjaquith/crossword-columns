@@ -89,9 +89,10 @@ const sampleClues: ClueSet = {
   ],
 };
 
-const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void }> = ({
+const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void; onReset: () => void }> = ({
   config,
   onChange,
+  onReset,
 }) => {
   // Calculate generated values
   const columnWidth = (config.puzzleWidth - (config.puzzleColSpan - 1) * config.columnGap) / config.puzzleColSpan;
@@ -201,7 +202,23 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
       fontSize: '14px',
       minWidth: '280px'
     }}>
-      <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>Configuration</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+        <h3 style={{ margin: '0', fontSize: '16px' }}>Configuration</h3>
+        <button 
+          onClick={onReset}
+          style={{
+            padding: '4px 8px',
+            fontSize: '12px',
+            backgroundColor: '#f44336',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Reset
+        </button>
+      </div>
       
       <div style={{ marginBottom: '8px' }}>
         <label style={{ display: 'block', marginBottom: '2px' }}>Columns:</label>
@@ -376,20 +393,50 @@ const DimensionOverlay: React.FC<{ width: number; height: number }> = ({ width, 
   );
 };
 
+const defaultConfig: Config = {
+  columnCount: 5,
+  puzzleWidth: 550,
+  puzzleHeight: 600,
+  puzzleColSpan: 3,
+  columnGap: 10,
+  rowGap: 10,
+  itemGap: 2,
+  overshootAllowance: 0,
+};
+
 const CrosswordLayout: React.FC = () => {
-  const [config, setConfig] = useState<Config>({
-    columnCount: 3,
-    puzzleWidth: 550,
-    puzzleHeight: 600,
-    puzzleColSpan: 2,
-    columnGap: 0,
-    rowGap: 0,
-    itemGap: 0,
-    overshootAllowance: 0,
+  const [config, setConfig] = useState<Config>(() => {
+    // Load from localStorage or use defaults
+    try {
+      const saved = localStorage.getItem('crossword-config');
+      return saved ? JSON.parse(saved) : defaultConfig;
+    } catch {
+      return defaultConfig;
+    }
   });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [columnElements, setColumnElements] = useState<HTMLDivElement[]>([]);
+
+  // Save config to localStorage whenever it changes
+  const updateConfig = (newConfig: Config) => {
+    setConfig(newConfig);
+    try {
+      localStorage.setItem('crossword-config', JSON.stringify(newConfig));
+    } catch (error) {
+      console.warn('Failed to save config to localStorage:', error);
+    }
+  };
+
+  // Reset to default configuration
+  const resetConfig = () => {
+    setConfig(defaultConfig);
+    try {
+      localStorage.removeItem('crossword-config');
+    } catch (error) {
+      console.warn('Failed to clear config from localStorage:', error);
+    }
+  };
 
   const columnColors = [
     '#ffebee', '#e8f5e8', '#e3f2fd', '#fff3e0', '#f3e5f5',
@@ -898,7 +945,7 @@ const CrosswordLayout: React.FC = () => {
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <ConfigPanel config={config} onChange={setConfig} />
+      <ConfigPanel config={config} onChange={updateConfig} onReset={resetConfig} />
       
       <div
         ref={containerRef}
