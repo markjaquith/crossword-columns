@@ -789,12 +789,58 @@ const CrosswordLayout: React.FC = () => {
         const tallestCol = columnBottoms.indexOf(maxBottom);
         const shortestCol = columnBottoms.indexOf(minBottom);
 
-        // Try to move an item from tallest to shortest column
-        if (columnContents[tallestCol]!.length > 1) {
-          // Try moving the last item (bottom of tallest column)
-          const itemToMove = columnContents[tallestCol]!.pop()!;
-          columnContents[shortestCol]!.push(itemToMove);
+        // Try adjacent column moves only
+        const tryMoves = [];
+        
+        // For each column, try moving items to adjacent columns
+        for (let col = 0; col < config.columnCount; col++) {
+          if (columnContents[col]!.length <= 1) continue;
           
+          // Try moving TOP of column to BOTTOM of previous column
+          if (col > 0) {
+            tryMoves.push(() => {
+              const item = columnContents[col]!.shift()!;
+              columnContents[col - 1]!.push(item);
+              return { 
+                item, 
+                from: col, 
+                to: col - 1, 
+                type: 'top-to-bottom-prev',
+                revert: () => {
+                  columnContents[col - 1]!.pop();
+                  columnContents[col]!.unshift(item);
+                }
+              };
+            });
+          }
+          
+          // Try moving BOTTOM of column to TOP of next column
+          if (col < config.columnCount - 1) {
+            tryMoves.push(() => {
+              const item = columnContents[col]!.pop()!;
+              columnContents[col + 1]!.unshift(item);
+              return { 
+                item, 
+                from: col, 
+                to: col + 1, 
+                type: 'bottom-to-top-next',
+                revert: () => {
+                  columnContents[col + 1]!.shift();
+                  columnContents[col]!.push(item);
+                }
+              };
+            });
+          }
+        }
+
+        // Try the first valid move and see if it improves balance
+        let moveFound = false;
+        
+        for (const tryMove of tryMoves) {
+          const move = tryMove();
+          if (!move) continue;
+          
+          // Execute the move
           renderColumns();
           
           // Check if this improved the balance after a short delay
@@ -803,7 +849,7 @@ const CrosswordLayout: React.FC = () => {
             const newImbalance = Math.max(...newColumnBottoms) - Math.min(...newColumnBottoms);
             
             if (newImbalance < imbalance) {
-              console.log(`  -> Moved "${itemToMove.content}" from column ${tallestCol} to ${shortestCol}`);
+              console.log(`  -> Moved "${move.item.content}" (${move.type}) from column ${move.from} to ${move.to}`);
               console.log(`  -> Imbalance improved: ${Math.round(imbalance)}px -> ${Math.round(newImbalance)}px`);
               
               // Continue balancing
@@ -811,15 +857,19 @@ const CrosswordLayout: React.FC = () => {
             } else {
               // Revert the move
               console.log(`  -> Move didn't improve balance, reverting`);
-              columnContents[shortestCol]!.pop();
-              columnContents[tallestCol]!.push(itemToMove);
+              move.revert();
               renderColumns();
               
               console.log('Visual balancing completed - no more improvements possible');
             }
           }, 50);
-        } else {
-          console.log('Visual balancing completed - cannot move items');
+          
+          moveFound = true;
+          break; // Only try one move at a time
+        }
+        
+        if (!moveFound) {
+          console.log('Visual balancing completed - no valid moves available');
         }
       };
 
