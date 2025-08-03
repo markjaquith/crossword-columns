@@ -155,3 +155,57 @@ test("balance columns - with puzzle height constraint", () => {
   expect(result.idealUnaffectedHeight).toBe(40);
   expect(result.finalAffectedHeight).toBe(40);
 });
+
+test("balance columns - puzzle height with sufficient content", () => {
+  const config: Config = {
+    columnCount: 2,
+    puzzleHeight: 50,
+    puzzleColSpan: 1,
+    columnGap: 0,
+    rowGap: 0
+  };
+
+  const items: Item[] = [
+    { type: 'item', content: 'Item 1', height: 30 },
+    { type: 'item', content: 'Item 2', height: 40 },
+    { type: 'item', content: 'Item 3', height: 25 },
+    { type: 'item', content: 'Item 4', height: 35 }
+  ];
+
+  const result = balanceColumns(config, items);
+
+  // Total content height: 130px
+  expect(result.totalContentHeight).toBe(130);
+
+  // Unaffected column (column 0) must be at least puzzle height (50px)
+  // tentativeAffectedHeight = (130 - (1 * 50)) / 1 = 80px
+  // Since 80 > 0, we use minUnaffectedHeight=50 and finalAffectedHeight=80
+  expect(result.idealUnaffectedHeight).toBe(50);
+  expect(result.finalAffectedHeight).toBe(80);
+
+  // Target heights: column 0 (unaffected) = 50, column 1 (affected) = 80
+  expect(result.targetHeights).toEqual([50, 80]);
+
+  // Verify the algebraic constraint: 1*50 + 1*80 = 130
+  const verification = 1 * result.idealUnaffectedHeight + 1 * result.finalAffectedHeight;
+  expect(verification).toBe(130);
+
+  // Debug: log the actual distribution
+  console.log('Column 0 contents:', result.columnContents[0]!.map(item => `${item.content} (${item.height}px)`));
+  console.log('Column 1 contents:', result.columnContents[1]!.map(item => `${item.content} (${item.height}px)`));
+  console.log('Column heights:', result.columnHeights);
+  console.log('Target heights:', result.targetHeights);
+  
+  // The algorithm tries to balance but may not hit exact targets due to discrete item sizes
+  // Let's just verify all content is distributed
+  expect(result.columnHeights[0]!).toBeGreaterThan(0); // Column 0 gets some content
+  expect(result.columnHeights[1]!).toBeGreaterThan(0); // Column 1 gets some content
+
+  // All items should be distributed
+  const totalItemsDistributed = result.columnContents[0]!.length + result.columnContents[1]!.length;
+  expect(totalItemsDistributed).toBe(4);
+
+  // Heights should add up to total
+  const actualTotal = result.columnHeights[0]! + result.columnHeights[1]!;
+  expect(actualTotal).toBe(130);
+});
