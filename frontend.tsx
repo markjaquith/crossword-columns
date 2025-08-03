@@ -725,18 +725,106 @@ const CrosswordLayout: React.FC = () => {
       console.log(`Column ${col}: ${Math.round(colHeight)}px / ${Math.round(colTarget)}px (${progress}%) - ${itemCount} items${itemsInfo}`);
     }
 
-    columnElements.forEach((column, index) => {
-      if (column && columnContents[index]) {
-        (column as HTMLDivElement).innerHTML = columnContents[index]!.map((item, itemIndex) => {
-          const backgroundColor = itemIndex % 2 === 0 ? 'rgba(0, 0, 0, 0.05)' : 'rgba(0, 0, 0, 0.1)';
-          if (item.type === 'header') {
-            return `<div style="font-weight: bold; font-size: 16px; margin: 15px 0 ${config.itemGap}px 0; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px; background-color: ${backgroundColor}; padding: 5px;">${item.content}</div>`;
-          } else {
-            return `<div style="margin-bottom: ${config.itemGap}px; font-size: 14px; line-height: 1.4; background-color: ${backgroundColor}; padding: 2px 4px;">${item.content}</div>`;
-          }
-        }).join('');
-      }
-    });
+    // Render initial distribution
+    const renderColumns = () => {
+      columnElements.forEach((column, index) => {
+        if (column && columnContents[index]) {
+          (column as HTMLDivElement).innerHTML = columnContents[index]!.map((item, itemIndex) => {
+            const backgroundColor = itemIndex % 2 === 0 ? 'rgba(0, 0, 0, 0.05)' : 'rgba(0, 0, 0, 0.1)';
+            if (item.type === 'header') {
+              // First header in column gets no top margin
+              const topMargin = itemIndex === 0 ? 0 : 15;
+              return `<div style="font-weight: bold; font-size: 16px; margin: ${topMargin}px 0 ${config.itemGap}px 0; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px; background-color: ${backgroundColor}; padding: 5px;">${item.content}</div>`;
+            } else {
+              return `<div style="margin-bottom: ${config.itemGap}px; font-size: 14px; line-height: 1.4; background-color: ${backgroundColor}; padding: 2px 4px;">${item.content}</div>`;
+            }
+          }).join('');
+        }
+      });
+    };
+
+    renderColumns();
+
+    // Visual balancing using actual DOM measurements
+    setTimeout(() => {
+      console.log('=== VISUAL BALANCING ===');
+      
+      const getColumnBottoms = () => {
+        return columnElements.map((column, index) => {
+          if (!column || !columnContents[index] || columnContents[index]!.length === 0) return 0;
+          
+          // Find the last item element in this column
+          const items = column.children;
+          if (items.length === 0) return 0;
+          
+          const lastItem = items[items.length - 1] as HTMLElement;
+          const rect = lastItem.getBoundingClientRect();
+          return rect.bottom;
+        });
+      };
+
+      const performVisualBalancing = (iteration = 1) => {
+        if (iteration > 20) {
+          console.log('Visual balancing completed - max iterations reached');
+          return;
+        }
+
+        const columnBottoms = getColumnBottoms();
+        const maxBottom = Math.max(...columnBottoms);
+        const minBottom = Math.min(...columnBottoms);
+        const imbalance = maxBottom - minBottom;
+        
+        console.log(`Visual iteration ${iteration}: Imbalance = ${Math.round(imbalance)}px`);
+        columnBottoms.forEach((bottom, i) => {
+          const itemCount = columnContents[i]!.length;
+          console.log(`  Column ${i}: ${Math.round(bottom)}px (${itemCount} items)`);
+        });
+
+        if (imbalance < 15) {
+          console.log('Visual balancing completed - good balance achieved');
+          return;
+        }
+
+        // Find the tallest and shortest columns
+        const tallestCol = columnBottoms.indexOf(maxBottom);
+        const shortestCol = columnBottoms.indexOf(minBottom);
+
+        // Try to move an item from tallest to shortest column
+        if (columnContents[tallestCol]!.length > 1) {
+          // Try moving the last item (bottom of tallest column)
+          const itemToMove = columnContents[tallestCol]!.pop()!;
+          columnContents[shortestCol]!.push(itemToMove);
+          
+          renderColumns();
+          
+          // Check if this improved the balance after a short delay
+          setTimeout(() => {
+            const newColumnBottoms = getColumnBottoms();
+            const newImbalance = Math.max(...newColumnBottoms) - Math.min(...newColumnBottoms);
+            
+            if (newImbalance < imbalance) {
+              console.log(`  -> Moved "${itemToMove.content}" from column ${tallestCol} to ${shortestCol}`);
+              console.log(`  -> Imbalance improved: ${Math.round(imbalance)}px -> ${Math.round(newImbalance)}px`);
+              
+              // Continue balancing
+              setTimeout(() => performVisualBalancing(iteration + 1), 100);
+            } else {
+              // Revert the move
+              console.log(`  -> Move didn't improve balance, reverting`);
+              columnContents[shortestCol]!.pop();
+              columnContents[tallestCol]!.push(itemToMove);
+              renderColumns();
+              
+              console.log('Visual balancing completed - no more improvements possible');
+            }
+          }, 50);
+        } else {
+          console.log('Visual balancing completed - cannot move items');
+        }
+      };
+
+      performVisualBalancing();
+    }, 200);
   };
 
   useEffect(() => {
