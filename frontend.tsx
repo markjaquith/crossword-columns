@@ -420,7 +420,6 @@ const CrosswordLayout: React.FC = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [columnElements, setColumnElements] = useState<HTMLDivElement[]>([]);
-  const [columnContents, setColumnContents] = useState<any[][]>([]);
 
   // Save config to localStorage whenever it changes
   const updateConfig = (newConfig: Config) => {
@@ -442,57 +441,7 @@ const CrosswordLayout: React.FC = () => {
     }
   };
 
-  // Recalculate dynamic spacing for perfect alignment
-  const recalculateSpacing = () => {
-    if (!config.pixelPerfectAlignment || columnElements.length === 0 || columnContents.length === 0) return;
-    
-    setTimeout(() => {
-      // Measure current bottom positions
-      const actualBottoms = columnElements.map((column, index) => {
-        if (!column || !columnContents[index] || columnContents[index]!.length === 0) return 0;
-        const items = column.children;
-        if (items.length === 0) return 0;
-        const lastItem = items[items.length - 1] as HTMLElement;
-        return lastItem.getBoundingClientRect().bottom;
-      });
-      
-      const maxBottom = Math.max(...actualBottoms);
-      
-      // Calculate new dynamic spacing
-      const newDynamicSpacing = actualBottoms.map((bottom, colIndex) => {
-        const itemCount = columnContents[colIndex]!.length;
-        if (itemCount <= 1) return 0;
-        
-        const heightDeficit = maxBottom - bottom;
-        const spacingPerGap = heightDeficit / (itemCount - 1);
-        return Math.max(0, spacingPerGap);
-      });
-      
-      // Re-render with new spacing
-      columnElements.forEach((column, index) => {
-        if (column && columnContents[index]) {
-          const extraSpacing = newDynamicSpacing[index] || 0;
-          
-          (column as HTMLDivElement).innerHTML = columnContents[index]!.map((item, itemIndex) => {
-            const backgroundColor = itemIndex % 2 === 0 ? 'rgba(0, 0, 0, 0.05)' : 'rgba(0, 0, 0, 0.1)';
-            const isLastItem = itemIndex === columnContents[index]!.length - 1;
-            const bottomMargin = isLastItem ? 0 : extraSpacing;
-            
-            if (item.type === 'header') {
-              const topMargin = itemIndex === 0 ? 0 : 15;
-              const verticalPadding = 5 + config.itemGap;
-              return `<div style="font-weight: bold; font-size: 16px; margin: ${topMargin}px 0 ${bottomMargin}px 0; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px; background-color: ${backgroundColor}; padding: ${verticalPadding}px 5px;">${item.content}</div>`;
-            } else {
-              const verticalPadding = 2 + config.itemGap;
-              return `<div style="font-size: 14px; line-height: 1.4; background-color: ${backgroundColor}; padding: ${verticalPadding}px 4px; margin-bottom: ${bottomMargin}px;">${item.content}</div>`;
-            }
-          }).join('');
-        }
-      });
-      
-      console.log('Dynamic spacing recalculated:', newDynamicSpacing.map(s => `${Math.round(s)}px`));
-    }, 50);
-  };
+
 
   const columnColors = [
     '#ffebee', '#e8f5e8', '#e3f2fd', '#fff3e0', '#f3e5f5',
@@ -776,6 +725,7 @@ const CrosswordLayout: React.FC = () => {
       columnElements.forEach((column, index) => {
         if (column && columnContents[index]) {
           const extraSpacing = currentDynamicSpacing[index] || 0;
+          const hasExtraSpacing = extraSpacing > 0;
           
           (column as HTMLDivElement).innerHTML = columnContents[index]!.map((item, itemIndex) => {
             const backgroundColor = itemIndex % 2 === 0 ? 'rgba(0, 0, 0, 0.05)' : 'rgba(0, 0, 0, 0.1)';
@@ -786,10 +736,22 @@ const CrosswordLayout: React.FC = () => {
               // First header in column gets no top margin
               const topMargin = itemIndex === 0 ? 0 : 15;
               const verticalPadding = 5 + config.itemGap;
-              return `<div style="font-weight: bold; font-size: 16px; margin: ${topMargin}px 0 ${bottomMargin}px 0; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px; background-color: ${backgroundColor}; padding: ${verticalPadding}px 5px;">${item.content}</div>`;
+              
+              if (hasExtraSpacing) {
+                return `<div style="font-weight: bold; font-size: 16px; margin: ${topMargin}px 0 ${bottomMargin}px 0; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px; background-color: ${backgroundColor}; padding: ${verticalPadding}px 5px;">${item.content}</div>`;
+              } else {
+                // Original CSS structure - no bottom margin property
+                return `<div style="font-weight: bold; font-size: 16px; margin: ${topMargin}px 0 0 0; text-transform: uppercase; border-bottom: 1px solid #ccc; padding-bottom: 5px; background-color: ${backgroundColor}; padding: ${verticalPadding}px 5px;">${item.content}</div>`;
+              }
             } else {
               const verticalPadding = 2 + config.itemGap;
-              return `<div style="font-size: 14px; line-height: 1.4; background-color: ${backgroundColor}; padding: ${verticalPadding}px 4px; margin-bottom: ${bottomMargin}px;">${item.content}</div>`;
+              
+              if (hasExtraSpacing) {
+                return `<div style="font-size: 14px; line-height: 1.4; background-color: ${backgroundColor}; padding: ${verticalPadding}px 4px; margin-bottom: ${bottomMargin}px;">${item.content}</div>`;
+              } else {
+                // Original CSS structure - no margin-bottom property
+                return `<div style="font-size: 14px; line-height: 1.4; background-color: ${backgroundColor}; padding: ${verticalPadding}px 4px;">${item.content}</div>`;
+              }
             }
           }).join('');
         }
@@ -934,11 +896,9 @@ const CrosswordLayout: React.FC = () => {
         
         // Step 4: Apply the best solution found
         console.log(`Final best imbalance: ${Math.round(bestImbalance)}px`);
-        const newColumnContents = [];
-        for (let i = 0; i < config.columnCount; i++) {
-          newColumnContents[i] = [...bestState.contents[i]!];
+        for (let i = 0; i < columnContents.length; i++) {
+          columnContents[i] = [...bestState.contents[i]!];
         }
-        setColumnContents(newColumnContents);
         renderColumns();
         
         // Step 5: Final height equalization with dynamic spacing (if enabled)
@@ -1044,15 +1004,7 @@ const CrosswordLayout: React.FC = () => {
     return () => clearTimeout(timer);
   }, [config, columnElements]);
 
-  // Recalculate spacing when config changes (after balancing is done)
-  useEffect(() => {
-    if (columnContents.length > 0) {
-      const timer = setTimeout(() => {
-        recalculateSpacing();
-      }, 500); // Wait for balancing to complete
-      return () => clearTimeout(timer);
-    }
-  }, [config.itemGap, config.columnGap, config.rowGap, config.pixelPerfectAlignment]); // Recalculate when spacing-related config changes
+
 
   const puzzleStartCol = config.columnCount - config.puzzleColSpan;
 
