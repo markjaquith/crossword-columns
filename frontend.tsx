@@ -521,5 +521,11 @@ const CrosswordLayout: React.FC = () => {
   );
 };
 
-const root = createRoot(document.body);
+const container = document.getElementById('root') || document.createElement('div');
+if (!document.getElementById('root')) {
+  container.id = 'root';
+  document.body.appendChild(container);
+}
+
+const root = createRoot(container);
 root.render(<CrosswordLayout />);
