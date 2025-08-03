@@ -19,6 +19,7 @@ interface Config {
   columnGap: number;
   rowGap: number;
   itemGap: number;
+  overshootAllowance: number;
 }
 
 const sampleClues: ClueSet = {
@@ -201,20 +202,23 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
   const unaffectedColumns = config.columnCount - config.puzzleColSpan;
   const affectedColumns = config.puzzleColSpan;
   
-  // Try setting U = puzzle height (minimum), solve for A
-  const minUnaffectedHeight = config.puzzleHeight;
-  const tentativeAffectedHeight = (totalContentHeight - (unaffectedColumns * minUnaffectedHeight)) / affectedColumns;
+  // The key insight: Unaffected Target = Affected Target + Puzzle Height + Row Gap
+  // This is because unaffected columns span the full height, while affected columns 
+  // only get the space below the puzzle
   
-  // If A would be negative, we need equal distribution
-  if (tentativeAffectedHeight < 0) {
-    const equalHeight = totalContentHeight / config.columnCount;
-    var idealUnaffectedHeight = equalHeight;
-    var finalAffectedHeight = equalHeight;
-  } else {
-    // A is positive, so we can use minimum U and calculated A
-    var idealUnaffectedHeight = minUnaffectedHeight;
-    var finalAffectedHeight = tentativeAffectedHeight;
-  }
+  // Let A = affected target height, U = unaffected target height
+  // Constraint: U = A + puzzleHeight + rowGap
+  // Equation: U * unaffectedColumns + A * affectedColumns = totalContentHeight
+  
+  // Substitute: (A + puzzleHeight + rowGap) * unaffectedColumns + A * affectedColumns = totalContentHeight
+  // Solve for A: A * (unaffectedColumns + affectedColumns) = totalContentHeight - (puzzleHeight + rowGap) * unaffectedColumns
+  
+  const puzzleAndGapHeight = config.puzzleHeight + config.rowGap;
+  const totalColumns = unaffectedColumns + affectedColumns;
+  const adjustedContentHeight = totalContentHeight - (puzzleAndGapHeight * unaffectedColumns);
+  
+  var finalAffectedHeight = adjustedContentHeight / totalColumns;
+  var idealUnaffectedHeight = finalAffectedHeight + puzzleAndGapHeight;
   return (
     <div style={{
       position: 'fixed',
@@ -316,6 +320,18 @@ const ConfigPanel: React.FC<{ config: Config; onChange: (config: Config) => void
         />
       </div>
 
+      <div style={{ marginBottom: '8px' }}>
+        <label style={{ display: 'block', marginBottom: '2px' }}>Overshoot Allowance:</label>
+        <input
+          type="number"
+          min="0"
+          max="100"
+          value={config.overshootAllowance}
+          onChange={(e) => onChange({ ...config, overshootAllowance: parseInt((e.target as HTMLInputElement).value) })}
+          style={{ width: '60px', padding: '2px' }}
+        />
+      </div>
+
       <hr style={{ margin: '15px 0', border: 'none', borderTop: '1px solid #ddd' }} />
       
       <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#666' }}>Generated Values</h4>
@@ -400,6 +416,7 @@ const CrosswordLayout: React.FC = () => {
     columnGap: 0,
     rowGap: 0,
     itemGap: 0,
+    overshootAllowance: 25,
   });
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -431,17 +448,13 @@ const CrosswordLayout: React.FC = () => {
     const affectedColumns = config.puzzleColSpan;
     const puzzleStartCol = config.columnCount - config.puzzleColSpan;
     
-    // Calculate target heights algebraically
-    const minUnaffectedHeight = config.puzzleHeight;
-    const idealAffectedHeight = (totalContentHeight - (unaffectedColumns * minUnaffectedHeight)) / affectedColumns;
+    // Calculate target heights using same logic as ConfigPanel
+    const puzzleAndGapHeight = config.puzzleHeight + config.rowGap;
+    const totalColumns = unaffectedColumns + affectedColumns;
+    const adjustedContentHeight = totalContentHeight - (puzzleAndGapHeight * unaffectedColumns);
     
-    const idealUnaffectedHeight = idealAffectedHeight < 0 
-      ? totalContentHeight / config.columnCount 
-      : minUnaffectedHeight;
-    
-    const finalAffectedHeight = idealAffectedHeight < 0
-      ? totalContentHeight / config.columnCount
-      : idealAffectedHeight;
+    const finalAffectedHeight = adjustedContentHeight / totalColumns;
+    const idealUnaffectedHeight = finalAffectedHeight + puzzleAndGapHeight;
 
     const allClues = [
       { type: 'header', content: 'ACROSS', height: headerHeight },
@@ -473,19 +486,58 @@ const CrosswordLayout: React.FC = () => {
     
     let currentColumn = 0;
 
-    for (const item of allClues) {
-      const currentTarget = targetHeights[currentColumn];
-      const currentHeight = columnHeights[currentColumn];
-      const wouldExceedTarget = (currentHeight + item.height) > currentTarget * 1.1;
-      const hasReachedMinTarget = currentHeight >= currentTarget * 0.8;
+    let hasSeenColumnSwitch = false;
+    let itemsAfterSwitch = 0;
+    
+    for (let itemIndex = 0; itemIndex < allClues.length; itemIndex++) {
+      const item = allClues[itemIndex];
+      const currentTarget = targetHeights[currentColumn]!;
+      const currentHeight = columnHeights[currentColumn]!;
+      const previousColumn = currentColumn;
       
-      // Move to next column if we would exceed target and have reached minimum
-      if (currentColumn < config.columnCount - 1 && wouldExceedTarget && hasReachedMinTarget) {
-        currentColumn++;
+      // Debug: log until first item after column switch
+      const shouldDebug = !hasSeenColumnSwitch || itemsAfterSwitch < 1;
+      
+      if (shouldDebug) {
+        console.log(`Item ${itemIndex}: "${item.content}" (${item.height}px)`);
+        console.log(`  Current column ${currentColumn}: ${currentHeight}px / ${currentTarget}px (${Math.round(currentHeight/currentTarget*100)}%)`);
+        if (currentColumn < config.columnCount - 1) {
+          const nextTarget = targetHeights[currentColumn + 1]!;
+          const nextHeight = columnHeights[currentColumn + 1]!;
+          console.log(`  Next column ${currentColumn + 1}: ${nextHeight}px / ${nextTarget}px (${Math.round(nextHeight/nextTarget*100)}%)`);
+        }
+      }
+      
+      // Better balancing: only switch when current column is getting close to its target
+      // AND adding this item would significantly overshoot
+      if (currentColumn < config.columnCount - 1) {
+        const nextTarget = targetHeights[currentColumn + 1]!;
+        const nextHeight = columnHeights[currentColumn + 1]!;
+        
+        const wouldOvershoot = (currentHeight + item.height) > (currentTarget + config.overshootAllowance);
+        const hasReachedMostOfTarget = currentHeight > currentTarget * 0.8;
+        
+        // Only switch if we're close to target AND would overshoot by more than allowance
+        if (wouldOvershoot && hasReachedMostOfTarget) {
+          if (shouldDebug) console.log(`  -> Moving to column ${currentColumn + 1} (would overshoot: ${currentHeight + item.height} > ${currentTarget + config.overshootAllowance})`);
+          currentColumn++;
+        }
       }
 
-      columnContents[currentColumn].push(item);
+      columnContents[currentColumn]!.push(item);
       columnHeights[currentColumn] += item.height;
+      
+      if (shouldDebug) {
+        console.log(`  -> Placed in column ${currentColumn}, new height: ${columnHeights[currentColumn]}px`);
+      }
+      
+      // Track column switches
+      if (currentColumn !== previousColumn) {
+        hasSeenColumnSwitch = true;
+        itemsAfterSwitch = 0;
+      } else if (hasSeenColumnSwitch) {
+        itemsAfterSwitch++;
+      }
     }
 
     columnElements.forEach((column, index) => {
